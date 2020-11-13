@@ -10,8 +10,6 @@ from sql_orm import crud, models, schemas, database
 from sql_orm.crud import get_password_hash, verify_password
 from sql_orm.database import get_db
 
-
-
 # ----------AUTH-----------------------------------------------------------------
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="users/login")
@@ -76,6 +74,7 @@ async def check_current_user_admin(token: str = Depends(oauth2_scheme), db: crud
         )
     return current_user
 
+
 # API-----------------------------------------------------------------------------------------
 
 
@@ -96,6 +95,32 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         data={"sub": user.username}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
+
+
+@router.get("/find_user")
+async def find_user(username: str = None, email: str = None, db: crud.Session = Depends(get_db),
+                    current_user: schemas.User = Depends(get_current_user)):
+    # for this any user can be logged in. This is so that I can allow other non-admin users to control my machines
+    if bool(username) is bool(email):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="An error occurred (update_access): Incorrect combination of input parameters",
+        )
+
+    ret = None
+    if username:
+        ret = crud.user_get_by_username(db, username)
+
+    elif email:
+        ret = crud.user_get_by_email(db, email)
+
+    if not ret:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Such user not found",
+        )
+
+    return ret
 
 
 @router.get("/list")
@@ -129,8 +154,6 @@ def change_password(username: str, new_password: str, db: crud.Session = Depends
 
 
 @router.delete("/user_delete/{username}")
-def delete_user(username: str, current_user: schemas.User = Depends(get_current_user), db: crud.Session = Depends(get_db)):
+def delete_user(username: str, current_user: schemas.User = Depends(get_current_user),
+                db: crud.Session = Depends(get_db)):
     return crud.user_delete(db, username)
-
-
-
