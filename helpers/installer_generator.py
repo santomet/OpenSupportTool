@@ -2,7 +2,7 @@ import os
 import tempfile
 from sql_orm import schemas
 from .settings import SISH_SSH_PORT
-
+from .settings import SISH_PUBLIC_FINGERPRINT
 
 async def remove_file(f: str):
     os.remove(f)
@@ -22,10 +22,11 @@ REMOTE_HOST="{3}"
 REMOTE_PORT="{4}"
 SISH_REMOTE_PORT="{5}"
 SISH_LOCAL_PORT="{6}"
+SISH_PUBLIC_FINGERPRINT="{7}"
 
 '''
     s = s.format(machine.public_key_remote, machine.one_time_sish_set_token, machine.stats_identifier,
-                 remote_hostname, remote_http_port, SISH_SSH_PORT, sish_local_port)
+                 remote_hostname, remote_http_port, SISH_SSH_PORT, sish_local_port, SISH_PUBLIC_FINGERPRINT)
     s += \
 '''
 # First install the key for remote access:
@@ -44,6 +45,11 @@ SISH_KEY=$( cat ~/.ssh/id_rsa_ost-autossh.pub )
 echo Registering our key with remote sish server
 # register ourselves with the server: TODO (we need also port for that :( )
 curl -X POST "http://$REMOTE_HOST:$REMOTE_PORT/machines/set_sish_pubkey" -H  "accept: application/json" -H  "Content-Type: application/json" -d "{\\\"pubkey\\\":\\\"$SISH_KEY\\\",\\\"token\\\":\\\"$ONETIME_SISH_KEY_INSTALL_TOKEN\\\"}"
+
+
+# register sish to known hosts
+echo "[$REMOTE_HOST]:$SISH_REMOTE_PORT $SISH_PUBLIC_FINGERPRINT" >> ~/.ssh/known_hosts
+
 
 # Create a service:
 SYSTEMDFILENAME=/etc/systemd/system/ost-autossh.service
