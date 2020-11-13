@@ -1,15 +1,21 @@
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Enum
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Enum, UniqueConstraint
 from sqlalchemy.orm import relationship, deferred
 
 from .database import Base
 import enum
 
 
-class AccessTypeEnum(enum.Enum):
-    owner = 0
-    maintainer = 1  # can do everything except delete
+class AccessTypeEnum(enum.IntEnum):
+    none = 0
+    owner = 4
+    maintainer = 3  # can do everything except delete and adding new accesses
     supporter = 2  # can control machines but cannot remove or edit them
-    reporter = 3  # can see only machine state
+    reporter = 1  # can see only machine state
+
+#    def __lt__(self, other):
+#        if self.__class__ is other.__class__:
+#            return self.value < other.value
+#        return NotImplemented
 
 
 class User(Base):
@@ -51,6 +57,11 @@ class Access(Base):
     user_id = Column(Integer, ForeignKey("users.id"), index=True)
     user_group_id = Column(Integer, ForeignKey("user_groups.id"), index=True)
     type = Column(Enum(AccessTypeEnum))
+
+    UniqueConstraint('user_id', 'machine_id', name='uix_1')
+    UniqueConstraint('user_id', 'machine_group_id', name='uix_2')
+    UniqueConstraint('user_group_id', 'machine_id', name='uix_3')
+    UniqueConstraint('user_group_id', 'machine_group_id', name='uix_4')
 
     user = relationship("User", back_populates="accesses")
     user_group = relationship("UserGroup", back_populates="accesses")

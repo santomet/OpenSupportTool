@@ -2,32 +2,21 @@
 
 # Press Shift+F10 to execute it or replace it with your code.
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
-from datetime import datetime, timedelta
-from typing import List, Optional
+
+import uvicorn
 from fastapi import FastAPI, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from pydantic import BaseModel
-from jose import JWTError, jwt
 from fastapi.middleware.cors import CORSMiddleware
+from routers import machines, users
 
 from sql_orm import crud, models, schemas, database
-from sql_orm.crud import get_password_hash, verify_password
 from sql_orm.database import get_db
 import random
 
 random.seed()  # takes system time by default
 
 app = FastAPI(title="Open Support Tool",
-    description="Simple tool to control your Linux machines (works with sish ssh server)",
-    version="0.1",)
-
-
-origins = [
-    "http://localhost.tiangolo.com",
-    "https://localhost.tiangolo.com",
-    "http://localhost",
-    "http://localhost:8080"
-]
+              description="Simple tool to control your Linux machines (works with sish ssh server)",
+              version="0.1", )
 
 app.add_middleware(
     CORSMiddleware,
@@ -43,16 +32,12 @@ if crud.users_is_empty(get_db().__next__()):
                                                              email="mail@example.com", is_admin=True))
     print("No users found in database, administrator admin with password admin created")
 
-
 # Check if there are any users in the db and create a default: admin:admin if not
-
-
-from routers import machines, users
 
 
 @app.get("/")
 def read_root():
-    return {"Message": "Welcome, this is Support Tool", "version": "1.0"}
+    return {"Message": "Welcome, this is Open Support Tool, see /docs for docs :)"}
 
 
 app.include_router(
@@ -67,6 +52,5 @@ app.include_router(
     tags=["users"]
 )
 
-
-
-
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)

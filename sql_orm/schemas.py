@@ -10,6 +10,9 @@ from .models import AccessTypeEnum
 # -: has only when reading
 
 
+# MACHINES----------------------------------------------
+
+
 class MachineBase(BaseModel):
     title: str
     description: Optional[str] = None
@@ -38,19 +41,7 @@ class Machine(MachineBase):
         orm_mode = True
 
 
-class AccessBase(BaseModel):
-    machine_id: int = None
-    machine_group_id: int = None
-    user_id: int = None
-    user_group_id: int = None
-    type: AccessTypeEnum
-
-class AccessCreate(AccessBase):
-    pass
-
-
-class Access(AccessBase):
-    pass
+# USERS---------------------------------------------------------------
 
 
 class UserBase(BaseModel):
@@ -66,6 +57,24 @@ class UserCreate(UserBase):
 class User(UserBase):
     id: int
 
-
     class Config:
         orm_mode = True
+
+
+# ACCESSES-----------------------------------------------------------
+
+
+class AccessBase(BaseModel):
+    machine_id: int = None
+    machine_group_id: int = None
+    user_id: int = None
+    user_group_id: int = None
+    type: AccessTypeEnum
+
+
+class AccessCreate(AccessBase):
+    pass
+
+
+class Access(AccessBase):
+    pass

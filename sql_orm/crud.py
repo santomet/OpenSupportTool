@@ -65,6 +65,41 @@ def user_delete(db: Session, username: str):
     db.commit()
     return ret
 
+
+# USER GROUPS-----------------------------------------------------------------------
+
+
+def user_group_create(db: Session, group_name: str):
+    user_group = models.UserGroup(name=group_name)
+    db.add(user_group)
+    db.commit()
+    db.refresh()
+    return user_group
+
+
+def user_group_delete(db: Session, group_id: int):
+    ret = db.query(models.UserGroup).filter(models.UserGroup.id == group_id).delete()
+    db.commit()
+    return ret
+
+
+def user_add_to_group(db: Session, group_id: int, user_id: int):
+    user_group_association = models.UserGroupAssociation(user_id=user_id, group_id=group_id)
+    db.add(user_group_association)
+    db.commit()
+    db.refresh()
+    return user_group_association
+
+
+def user_remove_from_group(db: Session, group_id: int, user_id: int):
+    ret = db.query(models.UserGroupAssociation).filter(
+        models.UserGroupAssociation.user_id == user_id,
+        models.UserGroupAssociation.group_id == group_id
+    ).delete()
+    db.commit()
+    return ret
+
+
 # MACHINES--------------------------------------------------------------------------
 
 
@@ -135,7 +170,45 @@ def machine_set_new_sish_public_key(db: Session, machine_id: int, public_key: st
     return machine
 
 
+# MACHINE GROUPS--------------------------------------------------------------------
+
+
+def machine_group_create(db: Session, machine_group_name: str):
+    machine_group = models.MachineGroup(name=machine_group_name)
+    db.add(machine_group)
+    db.commit()
+    db.refresh(machine_group)
+    return machine_group
+
+
+def machine_groups_list(db: Session):
+    return db.query(models.MachineGroup).all()
+
+
+def machine_group_delete(db: Session, machine_group_id: int):
+    ret = db.query(models.MachineGroup).filter(models.MachineGroup.id == machine_group_id).delete()
+    db.commit()
+    return ret
+
+
+def machine_add_to_group(db: Session, machine_id: int, machine_group_id: int):
+    machine_group_association = models.MachineGroupAssociation(machine_id=machine_id, machine_group_id=machine_group_id)
+    db.add(machine_group_association)
+    db.commit()
+    db.refresh(machine_group_association)
+    return machine_group_association
+
+
+def machine_remove_from_group(db: Session, machine_id: int, machine_group_id: int):
+    ret = db.query(models.MachineGroupAssociation).filter(models.MachineGroupAssociation.machine_group_id ==
+                                                          machine_group_id, models.MachineGroupAssociation.machine_id ==
+                                                          machine_id).delete()
+    db.commit()
+    return ret
+
+
 # ACCESSES--------------------------------------------------------------------------
+
 
 def access_add(db: Session, access: schemas.AccessCreate):
     db_access = models.Access(**access.dict())
@@ -167,7 +240,7 @@ def access_get(db: Session, access_id: int = None, user_id: int = None, user_gro
     if len(filters) <= 0:
         return False
 
-    return db.query(models.Access).filter(*filters).all()
+    return db.query(models.Access).filter(*filters).first()
 
 
 def access_delete(db: Session, access_id: int):
