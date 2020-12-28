@@ -6,7 +6,7 @@
 import uvicorn
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from routers import machines, users
+from routers import machines, users, connections
 
 from sql_orm import crud, models, schemas, database
 from sql_orm.database import get_db
@@ -50,6 +50,12 @@ app.include_router(
     users.router,
     prefix="/users",
     tags=["users"]
+)
+
+app.include_router(
+    connections.router,
+    prefix="/connections",
+    tags=["connections"]
 )
 
 if __name__ == "__main__":

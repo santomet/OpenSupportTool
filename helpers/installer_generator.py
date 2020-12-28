@@ -1,14 +1,14 @@
 import os
 import tempfile
 from sql_orm import schemas
-from .settings import SISH_SSH_PORT
-from .settings import SISH_PUBLIC_FINGERPRINT
+from .settings import SSH_PORT
+from .settings import SSH_SERVER_PUBLIC_FINGERPRINT
 
 async def remove_file(f: str):
     os.remove(f)
 
 
-async def generate_installer_file(machine: schemas.Machine, remote_hostname: str, remote_http_port: str, sish_local_port: str):
+async def generate_installer_file(machine: schemas.Machine, remote_hostname: str, remote_http_port: str):
     # this is going to be scripting hell
     f = tempfile.NamedTemporaryFile(delete=False, mode="w")
 
@@ -17,16 +17,16 @@ async def generate_installer_file(machine: schemas.Machine, remote_hostname: str
 echo "Hey there wisconsin!!!"
 REMOTE_PUBLICKEY="{0}"
 ONETIME_SISH_KEY_INSTALL_TOKEN="{1}"
-STATS_TOKEN="{2}"
+TOKEN="{2}"
 REMOTE_HOST="{3}"
 REMOTE_PORT="{4}"
-SISH_REMOTE_PORT="{5}"
-SISH_LOCAL_PORT="{6}"
-SISH_PUBLIC_FINGERPRINT="{7}"
+SSH_REMOTE_PORT="{5}"
+SSH_LOCAL_PORT="{6}"
+SSH_PUBLIC_FINGERPRINT="{7}"
 
 '''
-    s = s.format(machine.public_key_remote, machine.one_time_sish_set_token, machine.stats_identifier,
-                 remote_hostname, remote_http_port, SISH_SSH_PORT, sish_local_port, SISH_PUBLIC_FINGERPRINT)
+    s = s.format(machine.public_key_ssh_tunnel, machine.one_time_set_authkey_token, machine.token,
+                 remote_hostname, remote_http_port, SSH_PORT, 666, SSH_SERVER_PUBLIC_FINGERPRINT)
     s += \
 '''
 # First install the key for remote access:
@@ -47,8 +47,8 @@ echo Registering our key with remote sish server
 curl -X POST "http://$REMOTE_HOST:$REMOTE_PORT/machines/set_sish_pubkey" -H  "accept: application/json" -H  "Content-Type: application/json" -d "{\\\"pubkey\\\":\\\"$SISH_KEY\\\",\\\"token\\\":\\\"$ONETIME_SISH_KEY_INSTALL_TOKEN\\\"}"
 
 
-# register sish to known hosts
-echo "[$REMOTE_HOST]:$SISH_REMOTE_PORT $SISH_PUBLIC_FINGERPRINT" >> ~/.ssh/known_hosts
+# register ssh server to known hosts
+echo "[$REMOTE_HOST]:$SSH_REMOTE_PORT $SSH_PUBLIC_FINGERPRINT" >> ~/.ssh/known_hosts
 
 
 # Create a service:
@@ -60,7 +60,7 @@ echo "" | sudo tee -a $SYSTEMDFILENAME
 echo "[Service]" | sudo tee -a $SYSTEMDFILENAME
 echo "User=$USER" | sudo tee -a $SYSTEMDFILENAME
 echo "Environment=\\\"AUTOSSH_GATETIME=0\\\"" | sudo tee -a $SYSTEMDFILENAME
-echo "ExecStart = /usr/bin/autossh -M 0 -o \\\"ServerAliveInterval 30\\\" -o \\\"ServerAliveCountMax 3\\\" -R $SISH_LOCAL_PORT:localhost:22 $REMOTE_HOST -p $SISH_REMOTE_PORT -i /home/$USER/.ssh/id_rsa_ost-autossh" | sudo tee -a $SYSTEMDFILENAME
+echo "ExecStart = /usr/bin/autossh -M 0 -o \\\"ServerAliveInterval 30\\\" -o \\\"ServerAliveCountMax 3\\\" -R $SSH_LOCAL_PORT:localhost:22 $REMOTE_HOST -p $SSH_REMOTE_PORT -i /home/$USER/.ssh/id_rsa_ost-autossh" | sudo tee -a $SYSTEMDFILENAME
 #echo "ExecStop=/bin/kill $MAINPID" | sudo tee -a $SYSTEMDFILENAME
 echo "" | sudo tee -a $SYSTEMDFILENAME
 echo "[Install]" | sudo tee -a $SYSTEMDFILENAME

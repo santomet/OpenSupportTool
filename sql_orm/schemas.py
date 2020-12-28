@@ -17,17 +17,12 @@ class MachineBase(BaseModel):
     title: str
     description: Optional[str] = None
 
-    port: int
+    public_key_ssh_tunnel: str = None
 
-    private_key_remote: str = None
-    public_key_remote: str = None
-    public_key_sish: str = None
-
-    one_time_sish_set_token: str = None  # used only once
-
+    one_time_set_authkey_token: str = None  # used only once
     one_time_installer_token: str = None
 
-    stats_identifier: str
+    token: str
 
 
 class MachineCreate(MachineBase):

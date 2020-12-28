@@ -6,11 +6,27 @@ import enum
 
 
 class AccessTypeEnum(enum.IntEnum):
+    """Types of authorizations"""
     none = 0
     owner = 4
     maintainer = 3  # can do everything except delete and adding new accesses
     supporter = 2  # can control machines but cannot remove or edit them
     reporter = 1  # can see only machine state
+
+
+class ConnectionTypeEnum(enum.IntEnum):
+    """Types of connections"""
+    ssh_tunnel = 0
+    webrtc = 1  # Reserved TODO
+
+
+class ConnectionStateEnum(enum.IntEnum):
+    """Connection states"""
+    disconnected = 0
+    requested = 1
+    connected = 2  # this means that the agent acknowledges connection
+    disconnect_requested = 3  # this means that agent is requested to close the connection
+
 
 #    def __lt__(self, other):
 #        if self.__class__ is other.__class__:
@@ -19,6 +35,7 @@ class AccessTypeEnum(enum.IntEnum):
 
 
 class User(Base):
+    """Description of user"""
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
@@ -31,6 +48,7 @@ class User(Base):
 
 
 class UserGroup(Base):
+    """Description of a group of users"""
     __tablename__ = "user_groups"
 
     id = Column(Integer, primary_key=True)
@@ -40,6 +58,7 @@ class UserGroup(Base):
 
 
 class UserGroupAssociation(Base):
+    """Association of a user to a user group"""
     __tablename__ = "user_group_associations"
 
     user_id = Column(Integer, ForeignKey("users.id"), index=True, primary_key=True)
@@ -49,7 +68,8 @@ class UserGroupAssociation(Base):
 
 
 class Access(Base):
-    __tablename__  = "access"
+    """Description of an access"""
+    __tablename__ = "access"
 
     id = Column(Integer, primary_key=True)
     machine_id = Column(Integer, ForeignKey("machines.id"), index=True)
@@ -70,6 +90,7 @@ class Access(Base):
 
 
 class MachineGroup(Base):
+    """Group of machines"""
     __tablename__ = "machine_groups"
 
     id = Column(Integer, primary_key=True)
@@ -79,6 +100,7 @@ class MachineGroup(Base):
 
 
 class MachineGroupAssociation(Base):
+    """Association of machine to a machine group"""
     __tablename__ = "machine_group_associations"
 
     machine_id = Column(Integer, ForeignKey("machines.id"), index=True, primary_key=True)
@@ -88,22 +110,41 @@ class MachineGroupAssociation(Base):
 
 
 class Machine(Base):
+    """Machine description"""
     __tablename__ = "machines"
 
     id = Column(Integer, primary_key=True, index=True)
-    port = Column(Integer, unique=True)
 
-    private_key_remote = deferred(Column(String))
-    public_key_remote = deferred(Column(String))
-    public_key_sish = deferred(Column(String))
+    public_key_ssh_tunnel = deferred(Column(String))
 
-    one_time_sish_set_token = deferred(Column(String, index=True, unique=True))
+    one_time_set_authkey_token = deferred(Column(String, index=True, unique=True))
     one_time_installer_token = deferred(Column(String, index=True, unique=True))
 
-    stats_identifier = deferred(Column(String, index=True, unique=True))
+    token = deferred(Column(String, index=True, unique=True))
 
     title = Column(String, index=True)
     description = Column(String)
 
     groups = relationship("MachineGroupAssociation", back_populates="machine")
     accesses = relationship("Access", back_populates="machine")
+
+
+# Connections -----------------------------------------------------------------------------------------------
+
+class Connection(Base):
+    """This is how a connection is described in the database"""
+    __tablename__ = "connections"
+
+    id = Column(Integer, primary_key=True, index=True)
+    machine_id = Column(Integer, ForeignKey("machines.id"), index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), index=True)
+
+    connection_state = Column(Enum(ConnectionStateEnum), index=True, default=ConnectionStateEnum.disconnected)
+    connection_type = Column(Enum(ConnectionTypeEnum))
+    remote_port = Column(Integer)
+
+    # If this is a SSH tunnel connection. Otherwise zero
+    ssh_tunnel_port = Column(Integer, default=0)
+
+
+

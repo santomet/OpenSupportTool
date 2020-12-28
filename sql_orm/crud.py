@@ -117,10 +117,6 @@ def machine_delete(db: Session, id: int):
     return ret
 
 
-def machines_get_used_ports(db: Session):
-    return db.query(models.Machine).options(load_only("port")).all()
-
-
 def machines_get(db: Session, skip: int = 0):
     return db.query(models.Machine).offset(skip).all()
 
@@ -134,15 +130,15 @@ def machine_get(db: Session, machine_id: int):
 
 
 def machine_get_by_installer_token(db: Session, token: str):
-    return db.query(models.Machine).options(undefer("public_key_remote"),
-                                            undefer("one_time_sish_set_token"),
-                                            undefer("stats_identifier"))\
+    return db.query(models.Machine).options(undefer("public_key_ssh_tunnel"),
+                                            undefer("one_time_set_authkey_token"),
+                                            undefer("token"))\
         .filter(models.Machine.one_time_installer_token == token).first()
 
 
 def machine_get_by_sish_set_token(db: Session, token: str):
     return db.query(models.Machine) \
-        .filter(models.Machine.one_time_sish_set_token == token).first()
+        .filter(models.Machine.one_time_set_authkey_token == token).first()
 
 
 def machine_set_new_installer_token(db: Session, machine_id: int, token: str):
@@ -154,10 +150,10 @@ def machine_set_new_installer_token(db: Session, machine_id: int, token: str):
 
 
 def machine_set_new_sish_set_token(db: Session, machine_id: int, token: str):
-    machine = db.query(models.Machine).options(undefer("one_time_sish_set_token"))\
+    machine = db.query(models.Machine).options(undefer("one_time_set_authkey_token"))\
         .filter(models.Machine.id == machine_id) \
         .first()
-    machine.one_time_sish_set_token = token
+    machine.one_time_set_authkey_token = token
     db.commit()
     return machine
 
@@ -165,7 +161,7 @@ def machine_set_new_sish_set_token(db: Session, machine_id: int, token: str):
 def machine_set_new_sish_public_key(db: Session, machine_id: int, public_key: str):
     machine = db.query(models.Machine).options(undefer("public_key_sish"))\
         .filter(models.Machine.id == machine_id).first()
-    machine.public_key_sish = public_key
+    machine.public_key_ssh_tunnel = public_key
     db.commit()
     return machine
 
@@ -248,5 +244,21 @@ def access_delete(db: Session, access_id: int):
     db.commit()
     return ret
 
+# Connections --------------------------------------------------------------------------
 
 
+def connections_get_used_ports(db: Session):
+    return db.query(models.Connection).options(load_only("port")).all()
+
+
+def connections_add_request(machine_id: int, user_id: int, connection_type: models.ConnectionTypeEnum,
+                            remote_port: int, ssh_tunnel_port: int, db: Session):
+    connection = models.Connection(machine_id=machine_id, user_id=user_id,
+                                   connection_state=models.ConnectionStateEnum.requested,
+                                   connection_type=connection_type, remote_port=remote_port,
+                                   ssh_tunnel_port=ssh_tunnel_port)
+
+    db.add(connection)
+    db.commit()
+    db.refresh(connection)
+    return connection

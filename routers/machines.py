@@ -6,14 +6,14 @@ import random, string
 
 from .users import get_current_user
 from sql_orm.database import get_db
-from helpers import crypto, settings, installer_generator, sish_pubkey_manager
+from helpers import crypto, settings, installer_generator, ssh_authkeys_manager
 
 router = APIRouter()
 
 
 # HELPERS ---------------------------------------------------------------------------
 
-# TODO EXTEND THIS :) <3
+
 def get_access_level(user_id: int, machine_id: int, db: crud.Session):
     user: models.User = crud.user_get(db, user_id)
     if user.is_admin:
@@ -68,35 +68,22 @@ async def get_machines_list(current_user: schemas.User = Depends(get_current_use
 @router.post("/add_machine/{title}", )
 async def add_machine(title: str, current_user: schemas.User = Depends(get_current_user),
                       db: crud.Session = Depends(get_db)):
-    # This one is slightly more demanding, we make it as async
-    # First check free port in db:
-    used_ports = crud.machines_get_used_ports(db)
-    used_ports_list = []
-    for mach in used_ports:
-        used_ports_list.append(mach.port)
-    # get random port from the rest
-    ports_to_choose = list(set(settings.PORT_LIST) - set(used_ports_list))
-    port = random.choice(ports_to_choose)
 
-    # now generate keypair (
-    private_key_remote, public_key_remote = await crypto.generate_keypair()
-
-    # now generate random token that will be used when setting the public key from remote computer
-    one_time_sish_set_token = "".join(random.choices(string.ascii_letters + string.digits + "+/", k=50))
+    # generate random token that will be used when setting the public key from remote computer
+    one_time_set_authkey_token = "".join(random.choices(string.ascii_letters + string.digits + "+/", k=50))
 
     # now generate random token for downloading the install script
     one_time_installer_token = "".join(random.choices(string.ascii_uppercase + string.digits, k=5))
 
     # now generate random token for sending stats
 
-    stats_identifier = "".join(random.choices(string.ascii_letters + string.digits + "+/", k=50))
+    token = "".join(random.choices(string.ascii_letters + string.digits + "+/", k=50))
 
     # finally create the machine:
-    machine = schemas.MachineCreate(title=title, port=port, private_key_remote=private_key_remote,
-                                    public_key_remote=public_key_remote,
-                                    one_time_sish_set_token=one_time_sish_set_token,
+    machine = schemas.MachineCreate(title=title,
+                                    one_time_set_authkey_token=one_time_set_authkey_token,
                                     one_time_installer_token=one_time_installer_token,
-                                    stats_identifier=stats_identifier)
+                                    token=token)
     machine = crud.machine_create(db, machine)
 
     # now if the current user is not admin, automatically set him as maintainer
@@ -117,8 +104,7 @@ async def download_installer(one_time_installer_token: str, request: Request, ba
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Token not found"
         )
-    file = await installer_generator.generate_installer_file(machine, request.url.hostname, request.url.port,
-                                                             machine.port)
+    file = await installer_generator.generate_installer_file(machine, request.url.hostname, request.url.port)
     crud.machine_set_new_installer_token(db, machine.id, None)
     background_tasks.add_task(installer_generator.remove_file, file.name)  # this closes file after returning a response
     return FileResponse(path=file.name, filename="installer.sh")
@@ -129,7 +115,7 @@ class SishTokenBody(BaseModel):
     token: str
 
 
-@router.post("/set_sish_pubkey")
+@router.post("/set_ssh_auth_key")
 async def set_sish_pubkey(b: SishTokenBody, db: crud.Session = Depends(get_db)):
     machine = crud.machine_get_by_sish_set_token(db, b.token)
     if not machine:
@@ -145,7 +131,7 @@ async def set_sish_pubkey(b: SishTokenBody, db: crud.Session = Depends(get_db)):
             detail="Internal error, contact developers!"
         )
 
-    success = sish_pubkey_manager.set_sish_pubkey(machine.id, b.pubkey)
+    success = ssh_authkeys_manager.set_ssh_auth_key(machine.id, b.pubkey, machine.port)
 
     if not success:
         raise HTTPException(
@@ -171,13 +157,13 @@ async def generate_installer_link(machine_id: int, current_user: schemas.User = 
         )
 
     # now generate random token that will be used when setting the public key from remote computer
-    one_time_sish_set_token = "".join(random.choices(string.ascii_letters + string.digits + "+/", k=50))
+    one_time_set_authkey_token = "".join(random.choices(string.ascii_letters + string.digits + "+/", k=50))
 
     # now generate random token for downloading the install script
     one_time_installer_token = "".join(random.choices(string.ascii_uppercase + string.digits, k=5))
 
     crud.machine_set_new_installer_token(db, machine_id, one_time_installer_token)
-    crud.machine_set_new_sish_set_token(db, machine_id, one_time_sish_set_token)
+    crud.machine_set_new_sish_set_token(db, machine_id, one_time_set_authkey_token)
 
     return {"machine_id": machine_id, "one_time_installer_token": one_time_installer_token}
 
@@ -220,6 +206,27 @@ async def update_access(access_type: models.AccessTypeEnum, current_user: schema
     # otherwise if we are dealing with the group
     elif machine_group_id:
         return {}
+
+
+@router.delete("/delete_machine/{machine_id}")
+async def machine_delete(machine_id: int, current_user: schemas.User = Depends(get_current_user),
+                         db: crud.Session = Depends(get_db)):
+    # First check if user has the right to do that:
+    al = get_access_level(current_user.id, machine_id, db)
+    if al is not models.AccessTypeEnum.owner:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="You do not have authorization to do this operation",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    ret = crud.machine_delete(db, machine_id)
+    if not ret:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Machine not found"
+        )
+    return 0
+
 
 '''
 @router.post("/groups/add_group/{group_name}")
