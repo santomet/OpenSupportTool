@@ -71,3 +71,9 @@ async def request_connection(machine_id: int, remote_port: int, connection_type:
 
     elif connection_type is models.ConnectionTypeEnum.webrtc:
         return request_connection_webrtc()
+
+'''
+@router.delete("/remove_connection")
+async def remove_connection(connection_id: int)
+'''
+
