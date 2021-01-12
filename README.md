@@ -4,4 +4,4 @@ The aim is to create an API for management of machines port-forwarded by another
 
 The python 3 requirements:
 
-```uvicorn fastapi python-jose[cryptography] sqlalchemy passlib python-multipart aiofiles```
+```uvicorn fastapi python-jose[cryptography] sqlalchemy passlib python-multipart aiofiles bcrypt```

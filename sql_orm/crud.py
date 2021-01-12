@@ -262,3 +262,21 @@ def connections_add_request(machine_id: int, user_id: int, connection_type: mode
     db.commit()
     db.refresh(connection)
     return connection
+
+
+def connections_get_request_by_id(connection_id: int, db: Session):
+    return db.query(models.Connection).filter(models.Connection.id == connection_id).first()
+
+
+def connections_update_connection_state(connection_id: int, connection_state: models.ConnectionStateEnum, db: Session):
+    connection = db.query(models.Connection).filter(models.Connection.id == connection_id).first()
+    connection.connection_state = connection_state
+    db.commit()
+    return connection
+
+
+def connection_remove_connection(connection_id: int, db: Session):
+    ret = db.query(models.Connection).filter(models.Connection.id == connection_id).delete()
+    db.commit()
+    return ret
+
