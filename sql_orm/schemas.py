@@ -2,7 +2,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel
 
-from .models import AccessTypeEnum
+from .models import AccessTypeEnum, ActionTypeEnum, ConnectionTypeEnum
 
 
 # Base: class has common data when creating or reading
@@ -73,3 +73,27 @@ class AccessCreate(AccessBase):
 
 class Access(AccessBase):
     pass
+
+
+# RESPONSES TO AGENT
+
+class AgentResponse(BaseModel):
+    class Action(BaseModel):
+        class ConnectionDetails(BaseModel):
+            connection_type: ConnectionTypeEnum = ConnectionTypeEnum.ssh_tunnel
+            domain_ip: str = "0.0.0.0"
+            local_port: int = 0
+            timeout: int = 0
+
+            remote_ssh_port: int = 0  # these two only for SSH
+            remote_reverse_port: int = 0
+
+            ice_candidates: List[str] = []  # TBD for ICE protocol
+
+        action_type: ActionTypeEnum = ActionTypeEnum.connection
+        connection: ConnectionDetails = None
+
+    agent_found: bool = False
+    has_actions: bool = False
+    message: str = ""
+    actions: List[Action] = []

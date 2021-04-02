@@ -6,7 +6,14 @@ import enum
 
 
 class AccessTypeEnum(enum.IntEnum):
-    """Types of authorizations"""
+    """
+    Types of authorizations:
+    None = 0
+    Owner = 4
+    Maintainer = 3
+    Supporter = 2
+    Reporter = 1
+    """
     none = 0
     owner = 4
     maintainer = 3  # can do everything except delete and adding new accesses
@@ -14,14 +21,35 @@ class AccessTypeEnum(enum.IntEnum):
     reporter = 1  # can see only machine state
 
 
+class ActionTypeEnum(enum.IntEnum):
+    """
+    Types of actions:
+    Connection = 0
+    Restart = 1
+    Others TBD
+    """
+    connection = 0  # asking for a connection
+    restart = 1  # reserved TODO
+
+
 class ConnectionTypeEnum(enum.IntEnum):
-    """Types of connections"""
+    """
+    Types of connections:
+    SSH Tunnel = 0
+    WebRTC = 1 (Not implemented yet)
+    """
     ssh_tunnel = 0
     webrtc = 1  # Reserved TODO
 
 
 class ConnectionStateEnum(enum.IntEnum):
-    """Connection states"""
+    """
+    Connection states:
+    Disconnected = 0
+    Requested = 1
+    Connected = 2
+    Disconnect Explicitly requested = 3
+    """
     disconnected = 0
     requested = 1
     connected = 2  # this means that the agent acknowledges connection
@@ -145,6 +173,3 @@ class Connection(Base):
 
     # If this is a SSH tunnel connection. Otherwise zero
     ssh_tunnel_port = Column(Integer, default=0)
-
-
-

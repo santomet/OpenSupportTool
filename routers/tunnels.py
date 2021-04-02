@@ -13,10 +13,10 @@ from routers.machines import get_access_level
 # HELPERS -------------------------------------------------
 
 
-async def request_connection_ssh(machine_id: int, remote_port: int, create_temporary_private_key: bool,
+async def request_connection_ssh(machine_id: int, remote_port: int,
                                  current_user: schemas.User,
                                  db: crud.Session):
-    """This function processes the request to open ssh connection"""
+    """This function processes the request to open ssh tunnel"""
     # This one is slightly more demanding, we make it as async
     # First check free port in db:
     used_ports = crud.connections_get_used_ports(db)
@@ -29,9 +29,6 @@ async def request_connection_ssh(machine_id: int, remote_port: int, create_tempo
 
     crud.connections_add_request(machine_id, current_user.id, models.ConnectionTypeEnum.ssh_tunnel,
                                  remote_port, port, db)
-
-    if create_temporary_private_key:
-        private_key_remote, public_key_ssh_tunnel = await crypto.generate_keypair()
 
 
 async def request_connection_webrtc():  # TODO
@@ -49,7 +46,6 @@ router = APIRouter()
 
 @router.post("/request_connection")
 async def request_connection(machine_id: int, remote_port: int, connection_type: models.ConnectionTypeEnum,
-                             create_temporary_private_key: bool = False,
                              current_user: schemas.User = Depends(get_current_user),
                              db: crud.Session = Depends(get_db)):
     access_level: models.AccessTypeEnum = get_access_level(user_id=current_user.id, machine_id=machine_id, db=db)
@@ -66,7 +62,6 @@ async def request_connection(machine_id: int, remote_port: int, connection_type:
 
     if connection_type is models.ConnectionTypeEnum.ssh_tunnel:
         return request_connection_ssh(machine_id=machine_id, remote_port=remote_port,
-                                      create_temporary_private_key=create_temporary_private_key,
                                       current_user=current_user, db=db)
 
     elif connection_type is models.ConnectionTypeEnum.webrtc:
