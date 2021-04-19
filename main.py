@@ -4,15 +4,15 @@
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 
 import uvicorn
+import string
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from routers import machines, users, tunnels, agents
 
 from sql_orm import crud, models, schemas, database
 from sql_orm.database import get_db
-import random
-
-random.seed()  # takes system time by default
+import helpers.crypto
+import helpers.global_storage
 
 app = FastAPI(title="Open Support Tool",
               description="Simple tool to control your Linux machines (works with sish ssh server)",
@@ -31,6 +31,14 @@ if crud.users_is_empty(get_db().__next__()):
     crud.user_create(get_db().__next__(), schemas.UserCreate(username="admin", password="admin",
                                                              email="mail@example.com", is_admin=True))
     print("No users found in database, administrator admin with password admin created")
+
+if not crud.tokenpass_get(get_db().__next__()):
+    crud.tokenpass_set(get_db().__next__(), helpers.crypto.generate_random_standard_hex())
+    print("No Tokenpass (password for checking tokens) found in database, creating a new one")
+
+tokenpass_db: models.TokenCheckPassword = crud.tokenpass_get(get_db().__next__())
+helpers.global_storage.db_token_check_password = tokenpass_db.password
+print("Just for debug: Tokenpass: " + helpers.global_storage.db_token_check_password)
 
 # Check if there are any users in the db and create a default: admin:admin if not
 
@@ -61,7 +69,7 @@ app.include_router(
 app.include_router(
     agents.router,
     prefix="/agents",
-    tags=["agents"]
+    tags=["agents"],
 )
 
 if __name__ == "__main__":

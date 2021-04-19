@@ -1,9 +1,9 @@
-from sqlalchemy.orm import Session,relationship, deferred, defer, undefer, load_only
+from sqlalchemy.orm import Session, relationship, deferred, defer, undefer, load_only
+from sqlalchemy.sql.operators import ColumnOperators
 
 from . import models, schemas
 
 from passlib.context import CryptContext
-
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -19,7 +19,21 @@ def get_password_hash(password):
     return pwd_context.hash(password)
 
 
-# --------------------------------------------------------------
+# Main password for checking the correctness of tokens
+
+def tokenpass_get(db: Session):
+    return db.query(models.TokenCheckPassword).first()
+
+
+def tokenpass_set(db: Session, password: str):
+    tokenpass = models.TokenCheckPassword(password=password)
+    db.add(tokenpass)
+    db.commit()
+    db.refresh(tokenpass)
+    return tokenpass
+
+
+# Users --------------------------------------------------------------
 
 
 def users_is_empty(db: Session):
@@ -103,12 +117,23 @@ def user_remove_from_group(db: Session, group_id: int, user_id: int):
 # MACHINES--------------------------------------------------------------------------
 
 
-def machine_create(db: Session, machine: schemas.MachineCreate):
-    db_machine = models.Machine(**machine.dict())
+def machine_create(db: Session, machine: schemas.MachineCreate, token: str):
+    db_machine = models.Machine(one_time_installer_token=machine.one_time_installer_token,
+                                token=token, title=machine.title, description=machine.description)
     db.add(db_machine)
     db.commit()
     db.refresh(db_machine)
-    return db_machine
+    machine_full = schemas.Machine.from_orm(db_machine)
+    return machine_full
+
+
+def machine_update(db: Session, machine: models.Machine):
+    machine_old: models.Machine = db.query(models.Machine).filter(models.Machine.id == machine.id).first()
+    if not machine_old:
+        return False
+    machine_old = machine
+    db.commit()
+    return True
 
 
 def machine_delete(db: Session, id: int):
@@ -126,44 +151,26 @@ def machines_get_full(db: Session):
 
 
 def machine_get(db: Session, machine_id: int):
-    return db.query(models.Machine).filter(models.Machine.id == machine_id).first()
+    return schemas.Machine.from_orm(db.query(models.Machine).filter(models.Machine.id == machine_id).first())
 
 
 def machine_get_by_installer_token(db: Session, token: str):
-    return db.query(models.Machine).options(undefer("public_key_ssh_tunnel"),
-                                            undefer("one_time_set_authkey_token"),
-                                            undefer("token"))\
-        .filter(models.Machine.one_time_installer_token == token).first()
-
-
-def machine_get_by_sish_set_token(db: Session, token: str):
-    return db.query(models.Machine) \
-        .filter(models.Machine.one_time_set_authkey_token == token).first()
+    return schemas.Machine.from_orm(
+        db.query(models.Machine).options(undefer("token")).filter(models.Machine.one_time_installer_token == token).first()
+    )
 
 
 def machine_set_new_installer_token(db: Session, machine_id: int, token: str):
-    machine = db.query(models.Machine).options(undefer("one_time_installer_token"))\
+    machine = db.query(models.Machine).options(undefer("one_time_installer_token")) \
         .filter(models.Machine.id == machine_id).first()
     machine.one_time_installer_token = token
     db.commit()
     return machine
 
 
-def machine_set_new_sish_set_token(db: Session, machine_id: int, token: str):
-    machine = db.query(models.Machine).options(undefer("one_time_set_authkey_token"))\
-        .filter(models.Machine.id == machine_id) \
-        .first()
-    machine.one_time_set_authkey_token = token
-    db.commit()
-    return machine
-
-
-def machine_set_new_sish_public_key(db: Session, machine_id: int, public_key: str):
-    machine = db.query(models.Machine).options(undefer("public_key_sish"))\
-        .filter(models.Machine.id == machine_id).first()
-    machine.public_key_ssh_tunnel = public_key
-    db.commit()
-    return machine
+def machine_get_by_token(db: Session, token: str):
+    return db.query(models.Machine).options(undefer("token")).filter(
+            models.Machine.token == token).first()
 
 
 # MACHINE GROUPS--------------------------------------------------------------------
@@ -220,7 +227,6 @@ def access_get_by_id(db: Session, access_id: int):
 
 def access_get(db: Session, access_id: int = None, user_id: int = None, user_group_id: int = None,
                machine_id: int = None, machine_group_id: int = None):
-
     filters = []
     if access_id is not None:
         filters.append(models.Access.id == access_id)
@@ -244,39 +250,53 @@ def access_delete(db: Session, access_id: int):
     db.commit()
     return ret
 
-# Connections --------------------------------------------------------------------------
+
+# Tunnels --------------------------------------------------------------------------
 
 
-def connections_get_used_ports(db: Session):
-    return db.query(models.Connection).options(load_only("port")).all()
+def tunnel_get_used_reverse_ports(db: Session):
+    filt = models.Tunnel.connection_state != models.ConnectionStateEnum.disconnected
+    return db.query(models.Tunnel).filter(filt).options(load_only("reverse_port")).all()
 
 
-def connections_add_request(machine_id: int, user_id: int, connection_type: models.ConnectionTypeEnum,
-                            remote_port: int, ssh_tunnel_port: int, db: Session):
-    connection = models.Connection(machine_id=machine_id, user_id=user_id,
-                                   connection_state=models.ConnectionStateEnum.requested,
-                                   connection_type=connection_type, remote_port=remote_port,
-                                   ssh_tunnel_port=ssh_tunnel_port)
+def tunnels_list(db: Session, machine_id: int = None, connection_states: [models.ConnectionStateEnum] = None):
+    filts = []
+    if machine_id:
+        filts.append(models.Tunnel.machine_id == machine_id)
+    if connection_states:
+        filts.append(models.Tunnel.connection_state.in_(connection_states))
 
-    db.add(connection)
+    return db.query(models.Tunnel).filter(*filts).all()
+
+
+def tunnel_add(db: Session, tunnel: models.Tunnel):
+    db.add(tunnel)
     db.commit()
-    db.refresh(connection)
-    return connection
+    db.refresh(tunnel)
+    return tunnel.id
 
 
-def connections_get_request_by_id(connection_id: int, db: Session):
-    return db.query(models.Connection).filter(models.Connection.id == connection_id).first()
+def tunnel_get_request_by_id(db: Session, connection_id: int):
+    return db.query(models.Tunnel).filter(models.Tunnel.id == connection_id).first()
 
 
-def connections_update_connection_state(connection_id: int, connection_state: models.ConnectionStateEnum, db: Session):
-    connection = db.query(models.Connection).filter(models.Connection.id == connection_id).first()
+def tunnel_update(db: Session, tunnel: models.Tunnel):
+    tunnel_old = db.query(models.Tunnel).filter(models.Tunnel.id == tunnel.id).first()
+    if not tunnel_old:
+        return False
+    tunnel_old = tunnel
+    db.commit()
+    return True
+
+
+def tunnel_update_connection_state(db: Session, connection_id: int, connection_state: models.ConnectionStateEnum):
+    connection = db.query(models.Tunnel).filter(models.Tunnel.id == connection_id).first()
     connection.connection_state = connection_state
     db.commit()
     return connection
 
 
-def connection_remove_connection(connection_id: int, db: Session):
-    ret = db.query(models.Connection).filter(models.Connection.id == connection_id).delete()
+def tunnels_remove_connection(db: Session, connection_id: int):
+    ret = db.query(models.Tunnel).filter(models.Tunnel.id == connection_id).delete()
     db.commit()
     return ret
-

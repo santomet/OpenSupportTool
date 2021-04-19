@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Enum, UniqueConstraint
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Enum, UniqueConstraint, DateTime, Float
 from sqlalchemy.orm import relationship, deferred
 
 from .database import Base
@@ -45,10 +45,10 @@ class ConnectionTypeEnum(enum.IntEnum):
 class ConnectionStateEnum(enum.IntEnum):
     """
     Connection states:
-    Disconnected = 0
+    Disconnected - Finished and archived = 0
     Requested = 1
-    Connected = 2
-    Disconnect Explicitly requested = 3
+    Agent responded, Connection in progress = 2
+    Disconnect Has been requested = 3
     """
     disconnected = 0
     requested = 1
@@ -60,6 +60,14 @@ class ConnectionStateEnum(enum.IntEnum):
 #        if self.__class__ is other.__class__:
 #            return self.value < other.value
 #        return NotImplemented
+
+
+class TokenCheckPassword(Base):
+    """Password for fast checking the validity of tokens. There can be only one per db"""
+    __tablename__ = "tokencheckpassword"
+
+    id = Column(Integer, primary_key=True)
+    password = Column(String)
 
 
 class User(Base):
@@ -143,9 +151,6 @@ class Machine(Base):
 
     id = Column(Integer, primary_key=True, index=True)
 
-    public_key_ssh_tunnel = deferred(Column(String))
-
-    one_time_set_authkey_token = deferred(Column(String, index=True, unique=True))
     one_time_installer_token = deferred(Column(String, index=True, unique=True))
 
     token = deferred(Column(String, index=True, unique=True))
@@ -153,23 +158,46 @@ class Machine(Base):
     title = Column(String, index=True)
     description = Column(String)
 
+    last_query_datetime = Column(DateTime)
+    last_cpu_percent = Column(Float, default=0.0)
+    last_memory_percent = Column(Float, default=0.0)
+
+    agent_user_name = (Column(String, default=""))
+
     groups = relationship("MachineGroupAssociation", back_populates="machine")
     accesses = relationship("Access", back_populates="machine")
+    tunnels = relationship("Tunnel", back_populates="machine")
 
 
-# Connections -----------------------------------------------------------------------------------------------
+# Tunnels -----------------------------------------------------------------------------------------------
 
-class Connection(Base):
+class Tunnel(Base):
     """This is how a connection is described in the database"""
     __tablename__ = "connections"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id: Column = Column(Integer, primary_key=True, index=True)
     machine_id = Column(Integer, ForeignKey("machines.id"), index=True)
     user_id = Column(Integer, ForeignKey("users.id"), index=True)
 
     connection_state = Column(Enum(ConnectionStateEnum), index=True, default=ConnectionStateEnum.disconnected)
     connection_type = Column(Enum(ConnectionTypeEnum))
-    remote_port = Column(Integer)
 
-    # If this is a SSH tunnel connection. Otherwise zero
-    ssh_tunnel_port = Column(Integer, default=0)
+    port_to_tunnel = Column(Integer)
+
+    temporary_pubkey_for_agent_ssh = Column(String, default="")
+
+    creation_time = Column(DateTime)
+    timeout_time = Column(DateTime)
+
+    # These only if this is a SSH tunnel connection.
+    reverse_port = Column(Integer, default=0)
+    temporary_tunnel_privkey = Column(String, default="")
+    temporary_tunnel_pubkey = Column(String, default="")
+    # Server-specific
+    remote_ssh_fingerprint = Column(String, default="")
+    remote_ssh_port = Column(Integer, default=0)
+    remote_ssh_server = Column(String, default="")
+    remote_ssh_username = Column(String, default="")
+
+    # relationships
+    machine = relationship("Machine", back_populates="tunnels")

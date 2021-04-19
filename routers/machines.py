@@ -1,12 +1,15 @@
+import random
+import string
+
 from fastapi import APIRouter, Depends, Request, BackgroundTasks, HTTPException, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from sql_orm import crud, schemas, models
-import random, string
 
-from .users import get_current_user
+from helpers import installer_generator, ssh_authkeys_manager, crypto
+from sql_orm import crud, schemas, models
 from sql_orm.database import get_db
-from helpers import crypto, settings, installer_generator, ssh_authkeys_manager
+from .users import get_current_user
+from typing import List
 
 router = APIRouter()
 
@@ -53,7 +56,7 @@ def get_access_level(user_id: int, machine_id: int, db: crud.Session):
 # -----------------------------------------------------------------------------------
 
 
-@router.get("/list")
+@router.get("/list", response_model=List[schemas.MachineDetails])
 async def get_machines_list(current_user: schemas.User = Depends(get_current_user), db: crud.Session = Depends(get_db)):
     if current_user.is_admin:
         return crud.machines_get(db)
@@ -65,45 +68,51 @@ async def get_machines_list(current_user: schemas.User = Depends(get_current_use
     return machines
 
 
-@router.post("/add_machine/{title}", )
-async def add_machine(title: str, current_user: schemas.User = Depends(get_current_user),
+@router.post("/add_machine/", response_model=schemas.Machine)
+async def add_machine(machine: schemas.MachineBase, request: Request, current_user: schemas.User = Depends(get_current_user),
                       db: crud.Session = Depends(get_db)):
-
-    # generate random token that will be used when setting the public key from remote computer
-    one_time_set_authkey_token = "".join(random.choices(string.ascii_letters + string.digits + "+/", k=50))
-
-    # now generate random token for downloading the install script
-    one_time_installer_token = "".join(random.choices(string.ascii_uppercase + string.digits, k=5))
-
+    """
+    Adds a machine with certain name, description and then returns a whole machine object with generated values
+    """
+    machine_create = schemas.MachineCreate(**dict(machine))
+    # generate random token for downloading the install script
+    one_time_installer_token = crypto.generate_provable_token(True)
+    machine_create.one_time_installer_token = one_time_installer_token
     # now generate random token for sending stats
+    token: str = crypto.generate_provable_token(False)
 
-    token = "".join(random.choices(string.ascii_letters + string.digits + "+/", k=50))
-
-    # finally create the machine:
-    machine = schemas.MachineCreate(title=title,
-                                    one_time_set_authkey_token=one_time_set_authkey_token,
-                                    one_time_installer_token=one_time_installer_token,
-                                    token=token)
-    machine = crud.machine_create(db, machine)
-
+    machine_full: schemas.Machine = crud.machine_create(db, machine_create, token)
     # now if the current user is not admin, automatically set him as maintainer
-
-    access = schemas.AccessCreate(user_id=current_user.id, machine_id=machine.id,
+    access = schemas.AccessCreate(user_id=current_user.id, machine_id=machine_full.id,
                                   type=models.AccessTypeEnum.owner)
     crud.access_add(db, access)
 
-    return {"machine_id": machine.id, "one_time_installer_token": one_time_installer_token}
+    # lastly add the url for convenience
+    machine_full.one_time_installer_url = ("https://" + str(request.url.hostname) + ":" + str(request.url.port) +
+                                           "/machines/installer/" + one_time_installer_token)
+
+    return machine_full
 
 
 @router.get("/installer/{one_time_installer_token}")  # NO AUTH!!!!
 async def download_installer(one_time_installer_token: str, request: Request, background_tasks: BackgroundTasks,
                              db: crud.Session = Depends(get_db)):
-    machine = crud.machine_get_by_installer_token(db, one_time_installer_token)
+    """
+    Downloads an installer file
+    """
+    if not crypto.prove_token(one_time_installer_token):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Token not found"
+        )
+
+    machine: schemas.Machine = crud.machine_get_by_installer_token(db, one_time_installer_token)
     if not machine:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Token not found"
         )
+
     file = await installer_generator.generate_installer_file(machine, request.url.hostname, request.url.port)
     crud.machine_set_new_installer_token(db, machine.id, None)
     background_tasks.add_task(installer_generator.remove_file, file.name)  # this closes file after returning a response
@@ -115,7 +124,7 @@ class SishTokenBody(BaseModel):
     token: str
 
 
-@router.post("/set_ssh_auth_key")
+@router.post("/set_ssh_auth_key")  # OBSOLETE?
 async def set_sish_pubkey(b: SishTokenBody, db: crud.Session = Depends(get_db)):
     machine = crud.machine_get_by_sish_set_token(db, b.token)
     if not machine:
@@ -156,14 +165,10 @@ async def generate_installer_link(machine_id: int, current_user: schemas.User = 
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # now generate random token that will be used when setting the public key from remote computer
-    one_time_set_authkey_token = "".join(random.choices(string.ascii_letters + string.digits + "+/", k=50))
-
     # now generate random token for downloading the install script
-    one_time_installer_token = "".join(random.choices(string.ascii_uppercase + string.digits, k=5))
+    one_time_installer_token = crypto.generate_provable_token(True)
 
     crud.machine_set_new_installer_token(db, machine_id, one_time_installer_token)
-    crud.machine_set_new_sish_set_token(db, machine_id, one_time_set_authkey_token)
 
     return {"machine_id": machine_id, "one_time_installer_token": one_time_installer_token}
 
