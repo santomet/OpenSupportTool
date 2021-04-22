@@ -1,9 +1,5 @@
-# This is a sample Python script.
-
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
-
 import uvicorn
+import asyncio
 import string
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,6 +9,7 @@ from sql_orm import crud, models, schemas, database
 from sql_orm.database import get_db
 import helpers.crypto
 import helpers.global_storage
+import helpers.cleaninglady
 
 app = FastAPI(title="Open Support Tool",
               description="Simple tool to control your Linux machines (works with sish ssh server)",
@@ -27,11 +24,13 @@ app.add_middleware(
 )
 
 models.Base.metadata.create_all(bind=database.engine)
+# Check if there are any users in the db and create a default: admin:admin if not
 if crud.users_is_empty(get_db().__next__()):
     crud.user_create(get_db().__next__(), schemas.UserCreate(username="admin", password="admin",
                                                              email="mail@example.com", is_admin=True))
     print("No users found in database, administrator admin with password admin created")
 
+# Check if we have generated a password for generating valid tokens
 if not crud.tokenpass_get(get_db().__next__()):
     crud.tokenpass_set(get_db().__next__(), helpers.crypto.generate_random_standard_hex())
     print("No Tokenpass (password for checking tokens) found in database, creating a new one")
@@ -40,8 +39,10 @@ tokenpass_db: models.TokenCheckPassword = crud.tokenpass_get(get_db().__next__()
 helpers.global_storage.db_token_check_password = tokenpass_db.password
 print("Just for debug: Tokenpass: " + helpers.global_storage.db_token_check_password)
 
-# Check if there are any users in the db and create a default: admin:admin if not
 
+@app.on_event("startup")
+async def startup_event():
+    await helpers.cleaninglady.start(60)
 
 @app.get("/")
 def read_root():
@@ -71,6 +72,7 @@ app.include_router(
     prefix="/agents",
     tags=["agents"],
 )
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

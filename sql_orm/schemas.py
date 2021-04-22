@@ -36,6 +36,7 @@ class MachineAfterCreate(MachineBase):
 
 
 class Machine(MachineAfterCreate):
+    id: int
     token: str = None
 
 

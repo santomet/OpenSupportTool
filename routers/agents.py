@@ -4,7 +4,6 @@ from pydantic import BaseModel
 from sql_orm import crud, schemas, models
 import random, string
 from typing import List
-
 from .users import get_current_user
 from sql_orm.database import get_db
 from helpers import crypto, settings, installer_generator, ssh_authkeys_manager
@@ -91,7 +90,7 @@ async def agent_install(agentq: schemas.AgentInstall, db: crud.Session = Depends
     # returns 200 automatically
 
 @router.post("/tunnel_changed")
-async def set_tunnel_state_connected(agentq: schemas.AgentTunnelChange, db: crud.Session = Depends(get_db)):
+async def set_tunnel_state_connected(agentq: schemas.AgentTunnelChange, background_tasks: BackgroundTasks, db: crud.Session = Depends(get_db)):
     if not crypto.prove_token(agentq.token):
         raise HTTPException(
             status_code=status.HTTP_406_NOT_ACCEPTABLE,
@@ -112,7 +111,7 @@ async def set_tunnel_state_connected(agentq: schemas.AgentTunnelChange, db: crud
         )
 
     if agentq.new_state == models.ConnectionStateEnum.disconnected:
-        ssh_authkeys_manager.remove_particular_ssh_auth_key(db_tunnel.temporary_tunnel_pubkey)
+        background_tasks.add_task(ssh_authkeys_manager.remove_particular_ssh_auth_key, db_tunnel.temporary_tunnel_pubkey)
 
     db_tunnel.connection_state = agentq.new_state
     crud.tunnel_update(db, db_tunnel)

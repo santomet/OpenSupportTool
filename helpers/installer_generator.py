@@ -4,11 +4,11 @@ from sql_orm import schemas
 from .settings import TEST_MODE
 
 
-async def remove_file(f: str):
+def remove_file(f: str):
     os.remove(f)
 
 
-async def generate_installer_file(machine: schemas.Machine, remote_hostname: str, remote_http_port: str):
+def generate_installer_file(machine: schemas.Machine, remote_hostname: str, remote_http_port: str):
     f = tempfile.NamedTemporaryFile(delete=False, mode="w")
     s = '''\
 #! /bin/bash
@@ -26,8 +26,8 @@ mkdir ~/.OSTAgent
 cd ~/.OSTAgent
 
 # Download the agent archive
-wget https://github.com/santomet/OpenSupportTool-daemon/archive/refs/tags/v0.1.zip
-unzip v0.1.zip
+wget https://github.com/santomet/OpenSupportTool-daemon/archive/refs/tags/v0.2.zip
+unzip v0.2.zip
 mv OpenSupportTool*/* .
 rm -rf OpenSupport*
 rm *.zip
@@ -54,6 +54,8 @@ echo "User=$USER" | sudo tee -a $SYSTEMDFILENAME
 # echo "Environment=\\\"AUTOSSH_GATETIME=0\\\"" | sudo tee -a $SYSTEMDFILENAME
 echo "ExecStart = /usr/bin/python3 /home/$USER/.OSTAgent/main.py" | sudo tee -a $SYSTEMDFILENAME
 echo 'ExecStop=/bin/kill $MAINPID' | sudo tee -a $SYSTEMDFILENAME
+echo "Restart=on-failure" | sudo tee -a $SYSTEMDFILENAME
+echo "RestartSec=5s" | sudo tee -a $SYSTEMDFILENAME
 echo "" | sudo tee -a $SYSTEMDFILENAME
 echo "[Install]" | sudo tee -a $SYSTEMDFILENAME
 echo "WantedBy=multi-user.target" | sudo tee -a $SYSTEMDFILENAME

@@ -18,7 +18,7 @@ def remove_expired_ssh_auth_keys():
 
     # Filter out all the appearances of that machine ID we are dealing with
     for l in lines:
-        matchobj = re.match(r'timeout:(.*)$', l)
+        matchobj = re.match(r'.* timeout:(.*)$', l)
         if matchobj:
             to = datetime.datetime.fromisoformat(matchobj.group(1))
             if to < datetime.datetime.utcnow():
