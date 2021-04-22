@@ -16,25 +16,26 @@ from datetime import datetime
 class MachineBase(BaseModel):
     title: str = Field(..., description="Name of a machine")
     description: Optional[str] = Field(None, description="Additional info")
+    directory_id: int = Field(1, description="A machine directory where this can be")
 
 
     class Config:
         orm_mode = True
 
 class MachineDetails(MachineBase):
+    id: int
     last_query_datetime: datetime = Field(None,
                                           description="The UTC datetime of when the computer sent it's query the last time")
     last_cpu_percent: float = Field(0.0, description="The load of CPU at last_query_datetime")
     last_memory_percent: float = Field(0.0, description="The load of memory at last_query_datetime")
     agent_user_name: str = Field(None, description="The username of agent's account (simple SSH login)")
 
-class MachineCreate(MachineBase):
+class MachineAfterCreate(MachineBase):
     one_time_installer_token: str = Field(None, description="The Token for downloading the Installer")
     one_time_installer_url: str = Field(None, description="Full URL for downloading the Installer")
 
 
-class Machine(MachineCreate):
-    id: int
+class Machine(MachineAfterCreate):
     token: str = None
 
 
@@ -52,33 +53,53 @@ class UserCreate(UserBase):
 
 
 class User(UserBase):
-    def __init__(self, *args, **kwargs):
-        super().__init__(args, kwargs)
-        self.accesses = None
+    # def __init__(self, *args, **kwargs):
+    #     super().__init__(args, kwargs)
+    #     self.groups = None
 
     id: int
+    groups: List
 
     class Config:
         orm_mode = True
 
 
+class UserGroup(BaseModel):
+    id: int
+    name: str
+
+    class Config:
+        orm_mode = True
+
+# Directory
+class MachineDirectoryCreate(BaseModel):
+    name: str = Field("DIR_DEFAULT", description="Name of a machine directory")
+    parent_id: int = Field(None, description="Parent Directory ID")
+
+
+class MachineDirectory(MachineDirectoryCreate):
+    id: int = Field(0, description="Machine Directory ID")
+    machines: List[MachineDetails] = Field([], description="A list of child machines")
+    children: List["MachineDirectory"] = Field([], description="A list of child directories")
+
+    class Config:
+        orm_mode = True
+
+
+class MachineDirectoryForJson(MachineDirectory):
+    access_level: AccessTypeEnum = Field(AccessTypeEnum.none, description="The user that got this directory has this access level for it")
+
+MachineDirectory.update_forward_refs()
+MachineDirectoryForJson.update_forward_refs()
+
 # ACCESSES-----------------------------------------------------------
 
 
-class AccessBase(BaseModel):
-    machine_id: int = None
-    machine_group_id: int = None
-    user_id: int = None
+class Access(BaseModel):
+    machine_directory_id: int = None
     user_group_id: int = None
     type: AccessTypeEnum
 
-
-class AccessCreate(AccessBase):
-    pass
-
-
-class Access(AccessBase):
-    pass
 
 # TUNNELS -------------------------------------------------------------------------------------------------------------
 # TUNNELS REQUEST MODELS

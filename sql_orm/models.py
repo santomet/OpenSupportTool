@@ -1,5 +1,5 @@
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Enum, UniqueConstraint, DateTime, Float
-from sqlalchemy.orm import relationship, deferred
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Enum, UniqueConstraint, DateTime, Float, Table
+from sqlalchemy.orm import relationship, deferred, backref
 
 from .database import Base
 import enum
@@ -8,17 +8,15 @@ import enum
 class AccessTypeEnum(enum.IntEnum):
     """
     Types of authorizations:
-    None = 0
-    Owner = 4
     Maintainer = 3
     Supporter = 2
     Reporter = 1
     """
-    none = 0
-    owner = 4
-    maintainer = 3  # can do everything except delete and adding new accesses
-    supporter = 2  # can control machines but cannot remove or edit them
+    admin = 10  # Internal purposes
+    maintainer = 3  # can do everything except deleting machines and modifying accesses. Can create new machine in a directory
+    supporter = 2  # can control machines but cannot edit them
     reporter = 1  # can see only machine state
+    none = 0
 
 
 class ActionTypeEnum(enum.IntEnum):
@@ -79,8 +77,7 @@ class User(Base):
     email = Column(String, unique=True, index=True)
     hashed_password = deferred(Column(String))
     is_admin = Column(Boolean)
-    groups = relationship("UserGroupAssociation", back_populates="user")
-    accesses = relationship("Access", back_populates="user")
+    groups = relationship("UserGroup", backref="users", secondary="user_group_associations")
 
 
 class UserGroup(Base):
@@ -89,8 +86,8 @@ class UserGroup(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String)
-    users = relationship("UserGroupAssociation", back_populates="group")
-    accesses = relationship("Access", back_populates="user_group")
+    accesses = relationship("Access", back_populates="group")
+    # users = relationship("UserGroupAssociation", back_populates="group")
 
 
 class UserGroupAssociation(Base):
@@ -99,8 +96,8 @@ class UserGroupAssociation(Base):
 
     user_id = Column(Integer, ForeignKey("users.id"), index=True, primary_key=True)
     group_id = Column(Integer, ForeignKey("user_groups.id"), index=True, primary_key=True)
-    user = relationship("User", back_populates="groups")
-    group = relationship("UserGroup", back_populates="users")
+    # user = relationship("User", back_populates="groups")
+    # group = relationship("UserGroup", back_populates="users")
 
 
 class Access(Base):
@@ -108,41 +105,30 @@ class Access(Base):
     __tablename__ = "access"
 
     id = Column(Integer, primary_key=True)
-    machine_id = Column(Integer, ForeignKey("machines.id"), index=True)
-    machine_group_id = Column(Integer, ForeignKey("machine_groups.id"), index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), index=True)
+    machine_directory_id = Column(Integer, ForeignKey("machine_directory.id"), index=True)
     user_group_id = Column(Integer, ForeignKey("user_groups.id"), index=True)
     type = Column(Enum(AccessTypeEnum))
 
-    UniqueConstraint('user_id', 'machine_id', name='uix_1')
-    UniqueConstraint('user_id', 'machine_group_id', name='uix_2')
-    UniqueConstraint('user_group_id', 'machine_id', name='uix_3')
-    UniqueConstraint('user_group_id', 'machine_group_id', name='uix_4')
+    UniqueConstraint('user_group_id', 'machine_id', name='uix_1')
+    UniqueConstraint('user_group_id', 'machine_directory_id', name='uix_2')
 
-    user = relationship("User", back_populates="accesses")
-    user_group = relationship("UserGroup", back_populates="accesses")
-    machine = relationship("Machine", back_populates="accesses")
-    machine_group = relationship("MachineGroup", back_populates="accesses")
+    group = relationship("UserGroup", back_populates="accesses")
+    directory = relationship("MachineDirectory", back_populates="accesses")
 
+# Machines
 
-class MachineGroup(Base):
-    """Group of machines"""
-    __tablename__ = "machine_groups"
+class MachineDirectory(Base):
+    """The tree-able directory for machines"""
+    __tablename__ = "machine_directory"
 
-    id = Column(Integer, primary_key=True)
-    name = Column(String)
-    machines = relationship("MachineGroupAssociation", back_populates="group")
-    accesses = relationship("Access", back_populates="machine_group")
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, default="Default")
 
+    parent_id = Column(Integer, ForeignKey("machine_directory.id"), default=None)
 
-class MachineGroupAssociation(Base):
-    """Association of machine to a machine group"""
-    __tablename__ = "machine_group_associations"
-
-    machine_id = Column(Integer, ForeignKey("machines.id"), index=True, primary_key=True)
-    machine_group_id = Column(Integer, ForeignKey("machine_groups.id"), index=True, primary_key=True)
-    group = relationship("MachineGroup", back_populates="machines")
-    machine = relationship("Machine", back_populates="groups")
+    children = relationship("MachineDirectory", backref=backref("parent", remote_side=[id]))
+    machines = relationship("Machine", back_populates="directory")
+    accesses = relationship("Access", back_populates="directory")
 
 
 class Machine(Base):
@@ -150,6 +136,7 @@ class Machine(Base):
     __tablename__ = "machines"
 
     id = Column(Integer, primary_key=True, index=True)
+    directory_id = Column(Integer, ForeignKey("machine_directory.id"), nullable=False)
 
     one_time_installer_token = deferred(Column(String, index=True, unique=True))
 
@@ -164,8 +151,8 @@ class Machine(Base):
 
     agent_user_name = (Column(String, default=""))
 
-    groups = relationship("MachineGroupAssociation", back_populates="machine")
-    accesses = relationship("Access", back_populates="machine")
+#    groups = relationship("MachineGroupAssociation", back_populates="machine")
+    directory = relationship("MachineDirectory", back_populates="machines")
     tunnels = relationship("Tunnel", back_populates="machine")
 
 

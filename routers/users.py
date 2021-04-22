@@ -44,7 +44,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     return encoded_jwt
 
 
-async def get_current_user(token: str = Depends(oauth2_scheme), db: crud.Session = Depends(get_db)):
+def get_current_user(token: str = Depends(oauth2_scheme), db: crud.Session = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -65,7 +65,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: crud.Session
 
 
 async def check_current_user_admin(token: str = Depends(oauth2_scheme), db: crud.Session = Depends(get_db)):
-    current_user: schemas.User = await get_current_user(token, db)
+    current_user: schemas.User = get_current_user(token, db)
     if not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -134,16 +134,16 @@ async def read_users_me(current_user: schemas.User = Depends(get_current_user)):
     return current_user
 
 
-@router.post("/user_create/{username}:{password}:{is_admin}:{email}")
-def create_user(username: str, password: str, email: str, is_admin: bool, db: crud.Session = Depends(get_db),
-                current_user: schemas.User = Depends(check_current_user_admin)):
+@router.post("/user_create")
+async def create_user(username: str, password: str, email: str, is_admin: bool, db: crud.Session = Depends(get_db),
+                      current_user: schemas.User = Depends(check_current_user_admin)):
     user = schemas.UserCreate(username=username, password=password, email=email, is_admin=is_admin)
     return crud.user_create(db, user)
 
 
-@router.put("/change_password/{username}:{new_password}")
-def change_password(username: str, new_password: str, db: crud.Session = Depends(get_db),
-                    current_user: schemas.User = Depends(get_current_user)):
+@router.put("/change_password")
+async def change_password(username: str, new_password: str, db: crud.Session = Depends(get_db),
+                          current_user: schemas.User = Depends(get_current_user)):
     if current_user.username != username and not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -153,7 +153,163 @@ def change_password(username: str, new_password: str, db: crud.Session = Depends
     return crud.user_change_password(db, username, new_password)
 
 
-@router.delete("/user_delete/{username}")
-def delete_user(username: str, current_user: schemas.User = Depends(get_current_user),
-                db: crud.Session = Depends(get_db)):
+@router.delete("/user_delete")
+async def delete_user(username: str, current_user: schemas.User = Depends(get_current_user),
+                      db: crud.Session = Depends(get_db)):
     return crud.user_delete(db, username)
+
+
+@router.get("/user_group_list", response_model=List[schemas.UserGroup])
+async def router_group_list(current_user: schemas.User = Depends(get_current_user),
+                      db: crud.Session = Depends(get_db)):
+    if current_user.is_admin:
+        return crud.user_group_list(db)
+
+    return current_user.groups
+
+
+# User Groups - Only admins can work with that
+@router.put("/user_group_create")
+async def create_user_group(name: str, db: crud.Session = Depends(get_db),
+                            current_user: schemas.User = Depends(check_current_user_admin)):
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="You do not have authorization to do this operation",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return crud.user_group_create(db, name)
+
+
+@router.delete("/user_group_delete")
+async def delete_user_group(ug_id: int, db: crud.Session = Depends(get_db),
+                            current_user: schemas.User = Depends(check_current_user_admin)):
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="You do not have authorization to do this operation",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    ret = crud.user_group_delete(db, ug_id)
+
+    if not ret:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User group not found",
+        )
+
+
+@router.put("/add_user_to_group")
+async def add_user_to_group(user_id: int, group_id: int, db: crud.Session = Depends(get_db),
+                            current_user: schemas.User = Depends(check_current_user_admin)):
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="You do not have authorization to do this operation",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    crud.user_add_to_group(db, group_id, user_id)
+
+
+@router.put("/remove_user_from_group")
+async def remove_user_from_group(user_id: int, group_id: int, db: crud.Session = Depends(get_db),
+                            current_user: schemas.User = Depends(check_current_user_admin)):
+
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="You do not have authorization to do this operation",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    crud.user_remove_from_group(db, group_id, user_id)
+
+# Accesses
+@router.put("/update_access")
+async def update_access(group_id: int, directory_id: int, level: models.AccessTypeEnum, db: crud.Session = Depends(get_db),
+                            current_user: schemas.User = Depends(check_current_user_admin)):
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="You do not have authorization to do this operation",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if level > models.AccessTypeEnum.maintainer:
+        raise HTTPException(
+            status_code=status.HTTP_406_NOT_ACCEPTABLE,
+            detail="You can not use create any higher access than maintainer. Consider a different approach."
+        )
+
+    group_db: models.UserGroup = crud.user_group_get(db, group_id)
+    directory_db: models.MachineDirectory = crud.directory_get(db, directory_id)
+
+    if not group_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="The user group has not been found"
+        )
+
+    if not directory_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="The directory has not been found"
+        )
+
+    # Now there are some restrictions: At all times one group can only have one path of access to a directory.
+    # We first need all the directories IDs from the accessess
+    a: models.Access
+    adirids = []
+    for a in group_db.accesses:
+        adirids.append(a.machine_directory_id)
+
+
+    if directory_id in adirids:
+        # let's just update that, shall we?
+        access_db: models.Access = crud.access_get(db, machine_directory_id=directory_id, user_group_id=group_id)
+        if level == 0:
+            crud.access_delete(db, access_db.id)
+        else:
+            access_db.type = level
+            db.commit()
+        return
+
+    else:
+        # First see if the directory we are looking for is not a descendant of one of the dirs already in accessess
+        # This is not allowed at all!
+        d: models.MachineDirectory = directory_db
+        while d.parent:
+            if d.parent_id in adirids:
+                raise HTTPException(
+                    status_code=status.HTTP_406_NOT_ACCEPTABLE,
+                    detail="There already is an implicit access for this group and directory from the directory {}. If you "
+                           "need to change the explicit access for this directory and group, please consider different "
+                           "directory and group management instead ".format(d.parent.name)
+                )
+            d = d.parent
+
+        # Ok so it is not a descendant of existing access if we got here
+        # Now in case that the old access is some descendant of new one, we will just remove them
+        overriden = False
+        accessess_to_delete = []
+        ad: models.MachineDirectory
+        for a in group_db.accesses:
+            ad = a.directory
+            while ad.parent_id:
+                if ad.parent_id is directory_id:
+                    overriden = True
+                    accessess_to_delete.append(a)
+                ad = ad.parent
+        for a in accessess_to_delete:
+            crud.access_delete(db, a.id)
+
+        # Now we can finally add the access
+        if level > 0:
+            newac = schemas.Access(type=level, user_group_id=group_id, machine_directory_id=directory_id)
+            crud.access_add(db, newac)
+
+        if overriden:
+            return {"detail": "Original child accessess has been removed!"}

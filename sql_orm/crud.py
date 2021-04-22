@@ -87,8 +87,15 @@ def user_group_create(db: Session, group_name: str):
     user_group = models.UserGroup(name=group_name)
     db.add(user_group)
     db.commit()
-    db.refresh()
+    db.refresh(user_group)
     return user_group
+
+def user_group_list(db: Session):
+    return db.query(models.UserGroup).all()
+
+
+def user_group_get(db: Session, group_id: int):
+    return db.query(models.UserGroup).filter(models.UserGroup.id == group_id).first()
 
 
 def user_group_delete(db: Session, group_id: int):
@@ -101,7 +108,7 @@ def user_add_to_group(db: Session, group_id: int, user_id: int):
     user_group_association = models.UserGroupAssociation(user_id=user_id, group_id=group_id)
     db.add(user_group_association)
     db.commit()
-    db.refresh()
+    db.refresh(user_group_association)
     return user_group_association
 
 
@@ -113,13 +120,18 @@ def user_remove_from_group(db: Session, group_id: int, user_id: int):
     db.commit()
     return ret
 
+def user_get_group_association(db: Session, group_id: int, user_id: int):
+    return db.query(models.UserGroupAssociation).filter(
+        models.UserGroupAssociation.user_id == user_id,
+        models.UserGroupAssociation.group_id == group_id
+    ).first()
 
 # MACHINES--------------------------------------------------------------------------
 
 
-def machine_create(db: Session, machine: schemas.MachineCreate, token: str):
+def machine_create(db: Session, machine: schemas.MachineAfterCreate, token: str):
     db_machine = models.Machine(one_time_installer_token=machine.one_time_installer_token,
-                                token=token, title=machine.title, description=machine.description)
+                                token=token, title=machine.title, description=machine.description, directory_id=machine.directory_id)
     db.add(db_machine)
     db.commit()
     db.refresh(db_machine)
@@ -151,13 +163,11 @@ def machines_get_full(db: Session):
 
 
 def machine_get(db: Session, machine_id: int):
-    return schemas.Machine.from_orm(db.query(models.Machine).filter(models.Machine.id == machine_id).first())
+    return db.query(models.Machine).filter(models.Machine.id == machine_id).first()
 
 
 def machine_get_by_installer_token(db: Session, token: str):
-    return schemas.Machine.from_orm(
-        db.query(models.Machine).options(undefer("token")).filter(models.Machine.one_time_installer_token == token).first()
-    )
+    return db.query(models.Machine).options(undefer("token")).filter(models.Machine.one_time_installer_token == token).first()
 
 
 def machine_set_new_installer_token(db: Session, machine_id: int, token: str):
@@ -173,47 +183,34 @@ def machine_get_by_token(db: Session, token: str):
             models.Machine.token == token).first()
 
 
-# MACHINE GROUPS--------------------------------------------------------------------
+# MACHINE DIRECTOREIS--------------------------------------------------------------------
 
-
-def machine_group_create(db: Session, machine_group_name: str):
-    machine_group = models.MachineGroup(name=machine_group_name)
-    db.add(machine_group)
+def directory_add(db: Session, name: str, parent_id: int = None):
+    db_directory = models.MachineDirectory(name=name, parent_id=parent_id)
+    db.add(db_directory)
     db.commit()
-    db.refresh(machine_group)
-    return machine_group
+    db.refresh(db_directory)
+    return db_directory
 
 
-def machine_groups_list(db: Session):
-    return db.query(models.MachineGroup).all()
+def directory_get(db: Session, directory_id: int):
+    return db.query(models.MachineDirectory).filter(models.MachineDirectory.id == directory_id).first()
 
 
-def machine_group_delete(db: Session, machine_group_id: int):
-    ret = db.query(models.MachineGroup).filter(models.MachineGroup.id == machine_group_id).delete()
-    db.commit()
-    return ret
+def directory_get_all(db: Session):
+    return db.query(models.MachineDirectory).filter(models.MachineDirectory.parent_id == None).all()
 
 
-def machine_add_to_group(db: Session, machine_id: int, machine_group_id: int):
-    machine_group_association = models.MachineGroupAssociation(machine_id=machine_id, machine_group_id=machine_group_id)
-    db.add(machine_group_association)
-    db.commit()
-    db.refresh(machine_group_association)
-    return machine_group_association
-
-
-def machine_remove_from_group(db: Session, machine_id: int, machine_group_id: int):
-    ret = db.query(models.MachineGroupAssociation).filter(models.MachineGroupAssociation.machine_group_id ==
-                                                          machine_group_id, models.MachineGroupAssociation.machine_id ==
-                                                          machine_id).delete()
+def directory_remove(db: Session, id: int):
+    ret = db.query(models.MachineDirectory).filter(models.MachineDirectory.id == id).delete()
     db.commit()
     return ret
 
 
 # ACCESSES--------------------------------------------------------------------------
+# Accessess are only between the groups of users and the directories
 
-
-def access_add(db: Session, access: schemas.AccessCreate):
+def access_add(db: Session, access: schemas.Access):
     db_access = models.Access(**access.dict())
     db.add(db_access)
     db.commit()
@@ -225,19 +222,14 @@ def access_get_by_id(db: Session, access_id: int):
     return db.query(models.Access).filter(models.Access.id == access_id).first()
 
 
-def access_get(db: Session, access_id: int = None, user_id: int = None, user_group_id: int = None,
-               machine_id: int = None, machine_group_id: int = None):
+def access_get(db: Session, access_id: int = None, user_group_id: int = None, machine_directory_id: int = None):
     filters = []
     if access_id is not None:
         filters.append(models.Access.id == access_id)
-    if user_id is not None:
-        filters.append(models.Access.user_id == user_id)
     if user_group_id is not None:
         filters.append(models.Access.user_group_id == user_group_id)
-    if machine_id is not None:
-        filters.append(models.Access.machine_id == machine_id)
-    if machine_group_id is not None:
-        filters.append(models.Access.machine_group_id == machine_group_id)
+    if machine_directory_id is not None:
+        filters.append(models.Access.machine_directory_id == machine_directory_id)
 
     if len(filters) <= 0:
         return False
