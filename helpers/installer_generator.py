@@ -21,38 +21,49 @@ SERVER_PROTOCOL="{3}"
     s = s.format(machine.token, remote_hostname, remote_http_port, "http://" if TEST_MODE else "https://")
     s += \
         '''
-# Make the directory and CD in there
-mkdir ~/.OSTAgent
-cd ~/.OSTAgent
+# Mare sure openssh-server and other important things are installed:
+sudo apt install openssh-server python3 python3-pip python3-psutil python3-requests
 
-# Download the agent archive
+# Creating the user
+OST_USERNAME="ost-agent"
+PASSWD_RANDOM=$(openssl rand -base64 32) # create a random password - you do not need to remember
+sudo useradd -m $OST_USERNAME --password $(echo "$PASSWD_RANDOM" | openssl passwd -1 -stdin)
+
+# Now create some dirs/files the agent installer expects
+sudo mkdir /home/$OST_USERNAME/.ssh
+sudo touch /home/$OST_USERNAME/.ssh/authorized_keys
+sudo touch /home/$OST_USERNAME/.ssh/known_hosts
+sudo chmod 700 /home/$OST_USERNAME/.ssh
+sudo chmod 644 /home/$OST_USERNAME/.ssh/authorized_keys
+sudo chmod 644 /home/$OST_USERNAME/.ssh/known_hosts
+
+# Create the directory for Agent and download a compatible version
+sudo mkdir /home/$OST_USERNAME/.OSTAgent
 wget https://github.com/santomet/OpenSupportTool-daemon/archive/refs/tags/v0.2.zip
 unzip v0.2.zip
-mv OpenSupportTool*/* .
+sudo mv OpenSupportTool*/* /home/$OST_USERNAME/.OSTAgent/
 rm -rf OpenSupport*
 rm *.zip
 
-# recreate the data.json
-rm data.json
-cat << EOF > data.json
+# Recreate the data.json according to our settings
+sudo rm /home/$OST_USERNAME/.OSTAgent/data.json
+sudo cat << EOF > /home/$OST_USERNAME/.OSTAgent/data.json
 {"token": "$TOKEN", "server_protocol": "$SERVER_PROTOCOL", "server_domain_ip": "$REMOTE_HOST", "server_port": $REMOTE_PORT, "interval_seconds": 5, "is_installed": false, "tunnels": []}
 EOF
 
+# Give all the files back to the user!
+sudo chown -R $OST_USERNAME /home/$OST_USERNAME
 
-
-# Install all the requirements
-sudo apt install python3 python3-pip python3-psutil python3-requests
-
-# Create the service
+# Create a service for systemd
 SYSTEMDFILENAME=/etc/systemd/system/ost-agent.service
 echo "[Unit]" | sudo tee $SYSTEMDFILENAME
 echo "Description=Open Support Tool Agent" | sudo tee -a $SYSTEMDFILENAME
 echo "After=network-online.target ssh.service" | sudo tee -a $SYSTEMDFILENAME
 echo "" | sudo tee -a $SYSTEMDFILENAME
 echo "[Service]" | sudo tee -a $SYSTEMDFILENAME
-echo "User=$USER" | sudo tee -a $SYSTEMDFILENAME
+echo "User=$OST_USERNAME" | sudo tee -a $SYSTEMDFILENAME
 # echo "Environment=\\\"AUTOSSH_GATETIME=0\\\"" | sudo tee -a $SYSTEMDFILENAME
-echo "ExecStart = /usr/bin/python3 /home/$USER/.OSTAgent/main.py" | sudo tee -a $SYSTEMDFILENAME
+echo "ExecStart = /usr/bin/python3 /home/$OST_USERNAME/.OSTAgent/main.py" | sudo tee -a $SYSTEMDFILENAME
 echo 'ExecStop=/bin/kill $MAINPID' | sudo tee -a $SYSTEMDFILENAME
 echo "Restart=on-failure" | sudo tee -a $SYSTEMDFILENAME
 echo "RestartSec=5s" | sudo tee -a $SYSTEMDFILENAME
@@ -60,9 +71,17 @@ echo "" | sudo tee -a $SYSTEMDFILENAME
 echo "[Install]" | sudo tee -a $SYSTEMDFILENAME
 echo "WantedBy=multi-user.target" | sudo tee -a $SYSTEMDFILENAME
 
+# start the service
 sudo systemctl daemon-reload
 sudo systemctl stop ost-agent.service
 sudo systemctl start ost-agent.service
+
+
+
+# Make sure that this sudoer will never be accessible via SSH from the tunnel we just created:
+echo "DenyUsers $USER@localhost $USER@127.0.0.1" | sudo tee -a /etc/ssh/sshd_config
+# and restart the service
+sudo service ssh restart
         '''
 
     f.write(s)

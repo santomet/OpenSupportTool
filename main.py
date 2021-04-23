@@ -7,9 +7,7 @@ from routers import machines, users, tunnels, agents
 
 from sql_orm import crud, models, schemas, database
 from sql_orm.database import get_db
-import helpers.crypto
-import helpers.global_storage
-import helpers.cleaninglady
+from helpers import crypto, settings, global_storage, cleaninglady
 
 app = FastAPI(title="Open Support Tool",
               description="Simple tool to control your Linux machines (works with sish ssh server)",
@@ -32,17 +30,17 @@ if crud.users_is_empty(get_db().__next__()):
 
 # Check if we have generated a password for generating valid tokens
 if not crud.tokenpass_get(get_db().__next__()):
-    crud.tokenpass_set(get_db().__next__(), helpers.crypto.generate_random_standard_hex())
+    crud.tokenpass_set(get_db().__next__(), crypto.generate_random_standard_hex())
     print("No Tokenpass (password for checking tokens) found in database, creating a new one")
 
 tokenpass_db: models.TokenCheckPassword = crud.tokenpass_get(get_db().__next__())
-helpers.global_storage.db_token_check_password = tokenpass_db.password
-print("Just for debug: Tokenpass: " + helpers.global_storage.db_token_check_password)
+global_storage.db_token_check_password = tokenpass_db.password
+print("Just for debug: Tokenpass: " + global_storage.db_token_check_password)
 
 
 @app.on_event("startup")
 async def startup_event():
-    await helpers.cleaninglady.start(60)
+    await cleaninglady.start(settings.CLEANING_LADY_INTERVAL_SECONDS)
 
 @app.get("/")
 def read_root():

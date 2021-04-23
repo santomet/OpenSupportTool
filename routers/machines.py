@@ -3,6 +3,7 @@ import string
 
 from fastapi import APIRouter, Depends, Request, BackgroundTasks, HTTPException, status
 from fastapi.responses import FileResponse
+from fastapi.templating import  Jinja2Templates
 from pydantic import BaseModel
 
 from helpers import installer_generator, ssh_authkeys_manager, crypto
