@@ -47,7 +47,7 @@ rm *.zip
 
 # Recreate the data.json according to our settings
 sudo rm /home/$OST_USERNAME/.OSTAgent/data.json
-sudo cat << EOF > /home/$OST_USERNAME/.OSTAgent/data.json
+cat << EOF | sudo tee -a /home/$OST_USERNAME/.OSTAgent/data.json
 {"token": "$TOKEN", "server_protocol": "$SERVER_PROTOCOL", "server_domain_ip": "$REMOTE_HOST", "server_port": $REMOTE_PORT, "interval_seconds": 5, "is_installed": false, "tunnels": []}
 EOF
 

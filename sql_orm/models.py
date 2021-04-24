@@ -1,9 +1,10 @@
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Enum, UniqueConstraint, DateTime, Float, Table
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, Enum, UniqueConstraint, DateTime, Float, Table, String
 from sqlalchemy.orm import relationship, deferred, backref
 
 from .database import Base
 import enum
 
+# HotFix for some MySQL freedb:
 
 class AccessTypeEnum(enum.IntEnum):
     """
@@ -66,14 +67,14 @@ class TokenCheckPassword(Base):
     __tablename__ = "tokencheckpassword"
 
     id = Column(Integer, primary_key=True)
-    password = Column(String)
+    password = Column(String(255))
 
 class JWTSecretPassword(Base):
     """The secret used for JWT auth"""
     __tablename__ = "jwtcheckpassword"
 
     id = Column(Integer, primary_key=True)
-    password = Column(String)
+    password = Column(String(255))
 
 
 
@@ -83,9 +84,9 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, index=True)
-    email = Column(String, unique=True, index=True)
-    hashed_password = deferred(Column(String))
+    username = Column(String(255), unique=True, index=True)
+    email = Column(String(255), unique=True, index=True)
+    hashed_password = deferred(Column(String(255)))
     is_admin = Column(Boolean)
     groups = relationship("UserGroup", backref="users", secondary="user_group_associations")
 
@@ -95,7 +96,7 @@ class UserGroup(Base):
     __tablename__ = "user_groups"
 
     id = Column(Integer, primary_key=True)
-    name = Column(String)
+    name = Column(String(255))
     accesses = relationship("Access", back_populates="group")
     # users = relationship("UserGroupAssociation", back_populates="group")
 
@@ -132,7 +133,7 @@ class MachineDirectory(Base):
     __tablename__ = "machine_directory"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, default="Default")
+    name = Column(String(255), default="Default")
 
     parent_id = Column(Integer, ForeignKey("machine_directory.id"), default=None)
 
@@ -148,18 +149,18 @@ class Machine(Base):
     id = Column(Integer, primary_key=True, index=True)
     directory_id = Column(Integer, ForeignKey("machine_directory.id"), nullable=False)
 
-    one_time_installer_token = deferred(Column(String, index=True, unique=True))
+    one_time_installer_token = deferred(Column(String(255), index=True, unique=True))
 
-    token = deferred(Column(String, index=True, unique=True))
+    token = deferred(Column(String(255), index=True, unique=True))
 
-    title = Column(String, index=True)
-    description = Column(String)
+    title = Column(String(255), index=True)
+    description = Column(String(3072))
 
     last_query_datetime = Column(DateTime)
     last_cpu_percent = Column(Float, default=0.0)
     last_memory_percent = Column(Float, default=0.0)
 
-    agent_user_name = (Column(String, default=""))
+    agent_user_name = (Column(String(255), default=""))
 
 #    groups = relationship("MachineGroupAssociation", back_populates="machine")
     directory = relationship("MachineDirectory", back_populates="machines")
@@ -181,20 +182,20 @@ class Tunnel(Base):
 
     port_to_tunnel = Column(Integer)
 
-    temporary_pubkey_for_agent_ssh = Column(String, default="")
+    temporary_pubkey_for_agent_ssh = Column(String(3072), default="")
 
     creation_time = Column(DateTime)
     timeout_time = Column(DateTime)
 
     # These only if this is a SSH tunnel connection.
     reverse_port = Column(Integer, default=0)
-    temporary_tunnel_privkey = Column(String, default="")
-    temporary_tunnel_pubkey = Column(String, default="")
+    temporary_tunnel_privkey = Column(String(3072), default="")
+    temporary_tunnel_pubkey = Column(String(3072), default="")
     # Server-specific
-    remote_ssh_fingerprint = Column(String, default="")
+    remote_ssh_fingerprint = Column(String(1024), default="")
     remote_ssh_port = Column(Integer, default=0)
-    remote_ssh_server = Column(String, default="")
-    remote_ssh_username = Column(String, default="")
+    remote_ssh_server = Column(String(255), default="")
+    remote_ssh_username = Column(String(255), default="")
 
     # relationships
     machine = relationship("Machine", back_populates="tunnels")
