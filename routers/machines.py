@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse
 from fastapi.templating import  Jinja2Templates
 from pydantic import BaseModel
 
-from helpers import installer_generator, ssh_authkeys_manager, crypto
+from helpers import installer_generator, ssh_authkeys_manager, crypto, settings
 from sql_orm import crud, schemas, models
 from sql_orm.database import get_db
 from .users import get_current_user
@@ -142,8 +142,8 @@ async def add_machine(machine: schemas.MachineBase, request: Request,
     machine_full: schemas.Machine = crud.machine_create(db, machine_create, token)
 
     # lastly add the url for convenience
-    machine_full.one_time_installer_url = ("https://" + str(request.url.hostname) + ":" + str(request.url.port) +
-                                           "/machines/installer/" + one_time_installer_token)
+    machine_full.one_time_installer_url = (("http://" if settings.TEST_MODE else "https://") + str(request.url.hostname) + ":" + str(request.url.port) +
+                                           "/" + one_time_installer_token)
 
     return machine_full
 
@@ -167,7 +167,7 @@ async def remove_machine(machine_id: int, current_user: schemas.User = Depends(g
         )
 
 
-@router.get("/installer/{one_time_installer_token}")  # NO AUTH!!!!
+#@router.get("/installer/{one_time_installer_token}")  # NO AUTH!!!!
 async def download_installer(one_time_installer_token: str, request: Request, background_tasks: BackgroundTasks,
                              db: crud.Session = Depends(get_db)):
     """

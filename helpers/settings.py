@@ -2,16 +2,19 @@
 TEST_MODE = True
 
 
-# Auth
 # to get a string like this run:
 # openssl rand -hex 32
-SECRET_KEY = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
+# JWT access settings: Secret key is randomly generated on the first instance and saved to the database (see main)
+# The algorithm HS256 should not be changed!! Token expiration should be the same on every server
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+
+# How often the server checks for expired ssh authkeys and remove them
 CLEANING_LADY_INTERVAL_SECONDS = 60
 
 
-# SSH
+# SSH For this particular server!
 PORT_LIST = list(range(9000, 9101))
 SSH_AUTH_KEYS_FILE_PATH = "/opt/INSTALL/sish/deploy/pubkeys/authorized_keys"
 SSH_PORT = "2222"

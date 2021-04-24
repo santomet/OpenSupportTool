@@ -35,6 +35,10 @@ def generate_random_short_hex():
     return bytes.hex(os.urandom(NO_OF_BYTES_RANDOM_SHORT))
 
 
+def generate_random_custom_hex(noofbytes: int):
+    return bytes.hex(os.urandom(noofbytes))
+
+
 def generate_random_standard_hex():
     """Generates standard random value used throughout the application. See no_of_bytes_random, change makes
     the database unusable"""

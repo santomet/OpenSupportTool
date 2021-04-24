@@ -59,6 +59,7 @@ class ConnectionStateEnum(enum.IntEnum):
 #            return self.value < other.value
 #        return NotImplemented
 
+# Auth secrets:
 
 class TokenCheckPassword(Base):
     """Password for fast checking the validity of tokens. There can be only one per db"""
@@ -67,7 +68,16 @@ class TokenCheckPassword(Base):
     id = Column(Integer, primary_key=True)
     password = Column(String)
 
+class JWTSecretPassword(Base):
+    """The secret used for JWT auth"""
+    __tablename__ = "jwtcheckpassword"
 
+    id = Column(Integer, primary_key=True)
+    password = Column(String)
+
+
+
+# USER
 class User(Base):
     """Description of user"""
     __tablename__ = "users"

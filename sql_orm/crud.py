@@ -32,6 +32,16 @@ def tokenpass_set(db: Session, password: str):
     db.refresh(tokenpass)
     return tokenpass
 
+def jwtpass_get(db: Session):
+    return db.query(models.JWTSecretPassword).first()
+
+def jwtpass_set(db: Session, password: str):
+    jwtpass = models.JWTSecretPassword(password=password)
+    db.add(jwtpass)
+    db.commit()
+    db.refresh(jwtpass)
+    return jwtpass
+
 
 # Users --------------------------------------------------------------
 

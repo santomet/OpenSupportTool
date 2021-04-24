@@ -78,8 +78,8 @@ sudo systemctl start ost-agent.service
 
 
 
-# Make sure that this sudoer will never be accessible via SSH from the tunnel we just created:
-echo "DenyUsers $USER@localhost $USER@127.0.0.1" | sudo tee -a /etc/ssh/sshd_config
+# Make sure that this sudoer will never be accessible via SSH from the tunnel we just created: (create that only once, of course
+grep -qxF "DenyUsers $USER@localhost $USER@127.0.0.1" /etc/ssh/sshd_config || echo "DenyUsers $USER@localhost $USER@127.0.0.1" | sudo tee -a /etc/ssh/sshd_config
 # and restart the service
 sudo service ssh restart
         '''
