@@ -46,7 +46,7 @@ async def agent_query(agentq: schemas.AgentQuery, db: crud.Session = Depends(get
 
     machine: schemas.Machine = machine_db
     response = schemas.AgentResponse()
-    response.message = "Oh hello there!"
+    response.message = ""
 
     # we are now interested in all the tunnels which are requested to be create terminated
     tunnels: List[schemas.AgentResponse.Tunnel]
