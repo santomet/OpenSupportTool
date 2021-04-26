@@ -125,7 +125,7 @@ async def request_tunnel(model: schemas.TunnelRequest,
         return request_tunnel_webrtc()
 
 
-@router.post("/destroy_tunnel/{id}")
+@router.delete("/destroy_tunnel")
 async def destroy_tunnel(id: int, current_user: schemas.User = Depends(get_current_user),
                          db: crud.Session = Depends(get_db)):
     tunnel_db: models.Tunnel = crud.tunnel_get_request_by_id(db, id)

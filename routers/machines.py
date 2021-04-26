@@ -66,7 +66,7 @@ async def get_machines_list(current_user: schemas.User = Depends(get_current_use
         return crud.machines_get(db)
     else:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have authorization to do this operation",
             headers={"WWW-Authenticate": "Bearer"},
         )
@@ -77,7 +77,7 @@ async def get_structured_machine_list(user_group_id: int = None, current_user: s
                                       db: crud.Session = Depends(get_db)):
     if not current_user.is_admin and not user_group_id:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have authorization to list all directories",
             headers={"WWW-Authenticate": "Bearer"},
         )
@@ -95,7 +95,7 @@ async def get_structured_machine_list(user_group_id: int = None, current_user: s
 
     if group_db not in current_user.groups and not current_user.is_admin:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have any authorization for this particular group",
             headers={"WWW-Authenticate": "Bearer"},
         )
@@ -109,7 +109,22 @@ async def get_structured_machine_list(user_group_id: int = None, current_user: s
     return ret
 
 
-@router.put("/add_machine/", response_model=schemas.Machine)
+@router.get("/get_machine", response_model=schemas.MachineDetails)
+async def get_one_machine(machine_id: int, current_user: schemas.User = Depends(get_current_user),
+                      db: crud.Session = Depends(get_db)):
+    required_level = models.AccessTypeEnum.reporter
+    level = get_access_level(db, current_user.id, machine_id=machine_id)
+    if level < required_level:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have any authorization for this particular group",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return crud.machine_get(db, machine_id)
+
+
+@router.put("/add_machine", response_model=schemas.Machine)
 async def add_machine(machine: schemas.MachineBase, request: Request,
                       current_user: schemas.User = Depends(get_current_user),
                       db: crud.Session = Depends(get_db)):
@@ -121,7 +136,7 @@ async def add_machine(machine: schemas.MachineBase, request: Request,
     required_level = models.AccessTypeEnum.admin if not machine.directory_id else models.AccessTypeEnum.maintainer
     if get_access_level(db, user_id=current_user.id, directory_id=machine.directory_id) < required_level:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have any authorization for creating a machine here",
             headers={"WWW-Authenticate": "Bearer"},
         )
@@ -154,7 +169,7 @@ async def remove_machine(machine_id: int, current_user: schemas.User = Depends(g
     # only an admin can do this
     if not current_user.is_admin:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have authorization to remove machines. Contact the administrator",
             headers={"WWW-Authenticate": "Bearer"},
         )
@@ -200,7 +215,7 @@ async def generate_installer_link(machine_id: int, current_user: schemas.User = 
 
     if access_type < models.AccessTypeEnum.maintainer:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have authorization to do this operation",
             headers={"WWW-Authenticate": "Bearer"},
         )
@@ -220,7 +235,7 @@ async def add_directory(name: str, parent_id: int = None, current_user: schemas.
     al: models.AccessTypeEnum = get_access_level(db, user_id=current_user.id, directory_id=parent_id)
     if al < required_access_level:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have authorization to add a Directory here",
             headers={"WWW-Authenticate": "Bearer"},
         )
@@ -234,7 +249,7 @@ async def remove_directory(directory_id: int, current_user: schemas.User = Depen
     required_level = models.AccessTypeEnum.maintainer
     if get_access_level(db, user_id=current_user.id, directory_id=directory_id) < required_level:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have authorization to remove this directory",
             headers={"WWW-Authenticate": "Bearer"},
         )
@@ -259,7 +274,7 @@ async def edit_machine_directory(directory_id: int, name: str, current_user: sch
     level = get_access_level(db, user_id=current_user.id, directory_id=directory_id)
     if level < required_level:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have authorization to add edit this directory",
             headers={"WWW-Authenticate": "Bearer"},
         )
@@ -276,7 +291,7 @@ async def move_machine_directory(directory_id: int, parent_id: int = None,
                                  db: crud.Session = Depends(get_db)):
     if not current_user.is_admin and parent_id is None:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have authorization to move the directory to the root",
             headers={"WWW-Authenticate": "Bearer"},
         )
@@ -310,13 +325,13 @@ async def move_machine_to_directory(machine_id: int, directory_id: int = None,
     # In this case a machine level is at the same an original directory level
     if machine_level < needed_level:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have authorization to move this machine",
             headers={"WWW-Authenticate": "Bearer"},
         )
     if new_dir_level < needed_level:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have authorization to add to this directory",
             headers={"WWW-Authenticate": "Bearer"},
         )

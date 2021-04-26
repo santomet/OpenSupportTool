@@ -5,6 +5,8 @@ from pydantic import BaseModel, ValidationError, validator, Field, Json
 from .models import AccessTypeEnum, ActionTypeEnum, ConnectionTypeEnum, ConnectionStateEnum
 from datetime import datetime
 
+import helpers.settings
+
 # Base: class has common data when creating or reading
 # Create: has only when creating
 # -: has only when reading
@@ -160,6 +162,7 @@ class TunnelInfo(BaseModel):
     creation_time: datetime = Field(None, description="Datetime when the request for tunnel was created")
     timeout_time: datetime = Field(None, description="Datetime when the tunnel should be terminated")
     reverse_port: int = Field(..., description="The port through port_to_tunnel should be accessed")
+    remote_ssh_server: str = Field("", description="The host through which the tunnel is accessible")
 
     class Config:
         orm_mode = True
@@ -183,6 +186,7 @@ class AgentTunnelChange(BaseModel):
     token: str = Field("", description="The long term token of Agent")
     tunnel_id: int = Field(0, description="ID of tunnel")
     new_state: ConnectionStateEnum = Field(ConnectionStateEnum.disconnected, description="New state of a tunnel according to the agent")
+    remote_ssh_server: str = Field("", description="The remote SSH host that apparently works if the connection has been established")
 
 
 # RESPONSES TO AGENT

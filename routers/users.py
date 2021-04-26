@@ -146,7 +146,7 @@ async def change_password(username: str, new_password: str, db: crud.Session = D
                           current_user: schemas.User = Depends(get_current_user)):
     if current_user.username != username and not current_user.is_admin:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have authorization to do this operation",
             headers={"WWW-Authenticate": "Bearer"},
         )
@@ -174,7 +174,7 @@ async def create_user_group(name: str, db: crud.Session = Depends(get_db),
                             current_user: schemas.User = Depends(check_current_user_admin)):
     if not current_user.is_admin:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have authorization to do this operation",
             headers={"WWW-Authenticate": "Bearer"},
         )
@@ -187,7 +187,7 @@ async def delete_user_group(ug_id: int, db: crud.Session = Depends(get_db),
                             current_user: schemas.User = Depends(check_current_user_admin)):
     if not current_user.is_admin:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have authorization to do this operation",
             headers={"WWW-Authenticate": "Bearer"},
         )
@@ -206,7 +206,7 @@ async def add_user_to_group(user_id: int, group_id: int, db: crud.Session = Depe
                             current_user: schemas.User = Depends(check_current_user_admin)):
     if not current_user.is_admin:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have authorization to do this operation",
             headers={"WWW-Authenticate": "Bearer"},
         )
@@ -220,7 +220,7 @@ async def remove_user_from_group(user_id: int, group_id: int, db: crud.Session =
 
     if not current_user.is_admin:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have authorization to do this operation",
             headers={"WWW-Authenticate": "Bearer"},
         )
@@ -233,7 +233,7 @@ async def update_access(group_id: int, directory_id: int, level: models.AccessTy
                             current_user: schemas.User = Depends(check_current_user_admin)):
     if not current_user.is_admin:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have authorization to do this operation",
             headers={"WWW-Authenticate": "Bearer"},
         )

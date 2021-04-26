@@ -114,6 +114,7 @@ async def set_tunnel_state_connected(agentq: schemas.AgentTunnelChange, backgrou
         background_tasks.add_task(ssh_authkeys_manager.remove_particular_ssh_auth_key, db_tunnel.temporary_tunnel_pubkey)
 
     db_tunnel.connection_state = agentq.new_state
+    db_tunnel.remote_ssh_server = agentq.remote_ssh_server
     crud.tunnel_update(db, db_tunnel)
 
 
