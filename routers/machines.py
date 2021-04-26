@@ -124,7 +124,7 @@ async def get_one_machine(machine_id: int, current_user: schemas.User = Depends(
     return crud.machine_get(db, machine_id)
 
 
-@router.put("/add_machine", response_model=schemas.Machine)
+@router.post("/add_machine", response_model=schemas.Machine)
 async def add_machine(machine: schemas.MachineBase, request: Request,
                       current_user: schemas.User = Depends(get_current_user),
                       db: crud.Session = Depends(get_db)):
@@ -209,7 +209,7 @@ async def download_installer(one_time_installer_token: str, request: Request, ba
 
 
 @router.get("/generate_installer_link/")
-async def generate_installer_link(machine_id: int, current_user: schemas.User = Depends(get_current_user),
+async def generate_installer_link(machine_id: int, request: Request, current_user: schemas.User = Depends(get_current_user),
                                   db: crud.Session = Depends(get_db)):
     access_type = get_access_level(db, user_id=current_user.id, machine_id=machine_id)
 
@@ -224,11 +224,14 @@ async def generate_installer_link(machine_id: int, current_user: schemas.User = 
     one_time_installer_token = crypto.generate_provable_token(True)
 
     crud.machine_set_new_installer_token(db, machine_id, one_time_installer_token)
+    one_time_installer_url = (
+                ("http://" if settings.TEST_MODE else "https://") + str(request.url.hostname) + ":" + str(
+            request.url.port) +
+                "/" + one_time_installer_token)
+    return {"machine_id": machine_id, "one_time_installer_token": one_time_installer_token, "one_time_installer_url": one_time_installer_url}
 
-    return {"machine_id": machine_id, "one_time_installer_token": one_time_installer_token}
 
-
-@router.put("/add_directory", response_model=schemas.MachineDirectory)
+@router.get("/add_directory", response_model=schemas.MachineDirectory)
 async def add_directory(name: str, parent_id: int = None, current_user: schemas.User = Depends(get_current_user),
                         db: crud.Session = Depends(get_db)):
     required_access_level: models.AccessTypeEnum = models.AccessTypeEnum.admin if not parent_id else models.AccessTypeEnum.maintainer
@@ -243,7 +246,7 @@ async def add_directory(name: str, parent_id: int = None, current_user: schemas.
     return crud.directory_add(db, name, parent_id)
 
 
-@router.delete("/remove_directory/")
+@router.delete("/remove_directory")
 async def remove_directory(directory_id: int, current_user: schemas.User = Depends(get_current_user),
                            db: crud.Session = Depends(get_db)):
     required_level = models.AccessTypeEnum.maintainer
