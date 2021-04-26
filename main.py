@@ -90,4 +90,10 @@ async def get_installer(one_time_installer_token: str, request: Request, backgro
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    conf = {"host": "0.0.0.0", "port": settings.API_PORT}
+    if not settings.TEST_MODE:
+        conf["ssl_certfile"] = settings.SSL_CERT_LOCATION
+        conf["ssl_keyfile"] = settings.SSL_KEY_LOCATION
+        conf["ssl_ca_certs"] = settings.SSL_CA_LOCATION
+
+    uvicorn.run(app, **conf)
