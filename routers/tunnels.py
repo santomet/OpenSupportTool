@@ -26,6 +26,12 @@ async def request_tunnel_ssh(model: schemas.TunnelRequest,
     for mach in used_ports:  # converting from the
         used_ports_list.append(mach.reverse_port)
     ports_to_choose = list(set(settings.PORT_LIST) - set(used_ports_list))
+    if len(ports_to_choose) < 1:
+        raise HTTPException(
+            status_code=status.HTTP_428_PRECONDITION_REQUIRED,
+            detail="We do not have any free ports right now!",
+        )
+
     reverse_port: int = random.choice(ports_to_choose)  # get random port from the rest
 
     timeout_time = datetime.datetime.utcnow() + datetime.timedelta(seconds=model.timeout_seconds)
