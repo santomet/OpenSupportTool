@@ -75,6 +75,7 @@ echo "WantedBy=multi-user.target" | sudo tee -a $SYSTEMDFILENAME
 sudo systemctl daemon-reload
 sudo systemctl stop ost-agent.service
 sudo systemctl start ost-agent.service
+sudo systemctl enable ost-agent.service
 
 
 
