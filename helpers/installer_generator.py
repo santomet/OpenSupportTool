@@ -98,7 +98,7 @@ echo "[Install]" | sudo tee -a $SYSTEMDFILENAME
 echo "WantedBy=multi-user.target" | sudo tee -a $SYSTEMDFILENAME
 
 sudo systemctl daemon-reload
-sudo systemctl stop ost-agent.service
+sudo systemctl stop x11vnc.service
 sudo systemctl enable x11vnc.service
 sudo systemctl start x11vnc.service
 
