@@ -1,6 +1,5 @@
 import uvicorn
-import asyncio
-import string
+import os
 from fastapi import FastAPI, Depends, HTTPException, status, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from routers import machines, users, tunnels, agents
@@ -9,9 +8,14 @@ from sql_orm import crud, models, schemas, database
 from sql_orm.database import get_db
 from helpers import crypto, settings, global_storage, cleaninglady
 
+
+if not os.path.exists(settings.SSH_AUTH_KEYS_FILE_PATH):
+    with open(settings.SSH_AUTH_KEYS_FILE_PATH, 'w'): pass
+
 app = FastAPI(title="Open Support Tool",
-              description="Simple tool to control your Linux machines (works with sish ssh server)",
-              version="0.1", )
+              description="Simple API for remote management: Port forwarding on-demand, user accounts and access levels."
+                          "\nThe Wiki can be found on the github repo.",
+              version="0.1")
 
 app.add_middleware(
     CORSMiddleware,
