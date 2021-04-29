@@ -74,13 +74,38 @@ echo "WantedBy=multi-user.target" | sudo tee -a $SYSTEMDFILENAME
 # start the service
 sudo systemctl daemon-reload
 sudo systemctl stop ost-agent.service
-sudo systemctl start ost-agent.service
 sudo systemctl enable ost-agent.service
+sudo systemctl start ost-agent.service
 
+
+# Install VNC
+sudo apt install x11vnc
+
+# Create a service for x11vnc
+SYSTEMDFILENAME=/etc/systemd/system/x11vnc.service
+echo "[Unit]" | sudo tee $SYSTEMDFILENAME
+echo "Description=X11VNC service" | sudo tee -a $SYSTEMDFILENAME
+echo "After=multi-user.target" | sudo tee -a $SYSTEMDFILENAME
+echo "" | sudo tee -a $SYSTEMDFILENAME
+echo "[Service]" | sudo tee -a $SYSTEMDFILENAME
+echo "Type=simple" | sudo tee -a $SYSTEMDFILENAME
+echo "ExecStart = /usr/bin/x11vnc -auth guess -forever -loop -noxdamage -repeat -localhost -rfbport 5900 -shared -o /var/log/x11vnc.log" | sudo tee -a $SYSTEMDFILENAME
+echo "ExecStop=/bin/killall x11vnc" | sudo tee -a $SYSTEMDFILENAME
+echo "Restart=on-failure" | sudo tee -a $SYSTEMDFILENAME
+echo "RestartSec=5s" | sudo tee -a $SYSTEMDFILENAME
+echo "" | sudo tee -a $SYSTEMDFILENAME
+echo "[Install]" | sudo tee -a $SYSTEMDFILENAME
+echo "WantedBy=multi-user.target" | sudo tee -a $SYSTEMDFILENAME
+
+sudo systemctl daemon-reload
+sudo systemctl stop ost-agent.service
+sudo systemctl enable x11vnc.service
+sudo systemctl start x11vnc.service
 
 
 # Make sure that this sudoer will never be accessible via SSH from the tunnel we just created: (create that only once, of course
-grep -qxF "DenyUsers $USER@localhost $USER@127.0.0.1" /etc/ssh/sshd_config || echo "DenyUsers $USER@localhost $USER@127.0.0.1" | sudo tee -a /etc/ssh/sshd_config
+DENYLINE="DenyUsers $USER@localhost $USER@127.0.0.1 $USER@::1"
+grep -qxF "$DENYLINE" /etc/ssh/sshd_config || echo "$DENYLINE" | sudo tee -a /etc/ssh/sshd_config
 # and restart the service
 sudo service ssh restart
         '''
