@@ -111,6 +111,7 @@ router = APIRouter()
 async def request_tunnel(model: schemas.TunnelRequest,
                          current_user: schemas.User = Depends(get_current_user),
                          db: crud.Session = Depends(get_db)):
+    """This is how port forwarding tunnels are requested. User has to be at least of a supporter level."""
     access_level: models.AccessTypeEnum = get_access_level(user_id=current_user.id, machine_id=model.machine_id, db=db)
     needed_access_level: models.AccessTypeEnum = models.AccessTypeEnum.supporter  # reporter can not create tunnels
 
@@ -134,6 +135,7 @@ async def request_tunnel(model: schemas.TunnelRequest,
 @router.delete("/destroy_tunnel")
 async def destroy_tunnel(id: int, current_user: schemas.User = Depends(get_current_user),
                          db: crud.Session = Depends(get_db)):
+    """User has to be at least supporter. If the tunnel is connected, it will be requested to destroy."""
     tunnel_db: models.Tunnel = crud.tunnel_get_request_by_id(db, id)
     if not tunnel_db:
         raise HTTPException(
@@ -157,6 +159,8 @@ async def destroy_tunnel(id: int, current_user: schemas.User = Depends(get_curre
 @router.post("/list_tunnels_for_machine", response_model=List[schemas.TunnelInfo])
 async def get_tunnels(request: schemas.TunnelsListRequest, current_user: schemas.User = Depends(get_current_user),
                           db: crud.Session = Depends(get_db)):
+    """Lists all the tunnels of one of the specified states (all of them if none is specified)
+    for a particular machine"""
     db_tunnels = crud.tunnels_list(db, request.machine_id, request.connection_states)
     if current_user.is_admin:
         # shortcut for fast response
@@ -175,6 +179,7 @@ async def get_tunnels(request: schemas.TunnelsListRequest, current_user: schemas
 @router.get("/list_all_tunnels", response_model=List[schemas.TunnelInfo])
 async def get_all_tunnels(current_user: schemas.User = Depends(get_current_user),
                           db: crud.Session = Depends(get_db)):
+    """Lists all the tunnels for all the machines of all the states. Only accessible machines are listed."""
     # access_level: models.AccessTypeEnum = get_access_level(user_id=current_user.id, machine_id=model.machine_id, db=db)
     # needed_access_level: models.AccessTypeEnum = models.AccessTypeEnum.supporter  # reporter can not create
     #

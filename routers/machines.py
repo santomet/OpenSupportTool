@@ -19,6 +19,7 @@ router = APIRouter()
 
 
 def get_access_level(db: crud.Session, user_id: int, machine_id: int = None, directory_id: int = None):
+    """Helper function that returns the highest current access level of a user to particular machine or directory"""
     user: models.User = crud.user_get(db, user_id)
     if user.is_admin:
         return models.AccessTypeEnum.admin
@@ -61,7 +62,8 @@ def get_access_level(db: crud.Session, user_id: int, machine_id: int = None, dir
 
 @router.get("/list", response_model=List[schemas.MachineDetails])
 async def get_machines_list(current_user: schemas.User = Depends(get_current_user), db: crud.Session = Depends(get_db)):
-    """Lists all the machines out of their directories: only Administrators can do this, mainly for debug purposes, should not be used in the client"""
+    """Lists all the machines out of their directories: only Administrators can do this,
+    mainly for debug purposes, should not be used in the client"""
     if current_user.is_admin:
         return crud.machines_get(db)
     else:
@@ -75,6 +77,9 @@ async def get_machines_list(current_user: schemas.User = Depends(get_current_use
 @router.get("/structured", response_model=List[schemas.MachineDirectoryForJson])
 async def get_structured_machine_list(user_group_id: int = None, current_user: schemas.User = Depends(get_current_user),
                                       db: crud.Session = Depends(get_db)):
+    """Returns structured JSON that contains all the levels of directories and machines from the view of a particular
+    User Group. The User has to be an admin or has to be in that user group. If no User Group is specified and
+    the user is an admin, all the root directories are returned"""
     if not current_user.is_admin and not user_group_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -112,6 +117,7 @@ async def get_structured_machine_list(user_group_id: int = None, current_user: s
 @router.get("/get_machine", response_model=schemas.MachineDetails)
 async def get_one_machine(machine_id: int, current_user: schemas.User = Depends(get_current_user),
                       db: crud.Session = Depends(get_db)):
+    """Get details of one particular machine"""
     required_level = models.AccessTypeEnum.reporter
     level = get_access_level(db, current_user.id, machine_id=machine_id)
     if level < required_level:
@@ -166,6 +172,7 @@ async def add_machine(machine: schemas.MachineBase, request: Request,
 @router.delete("/remove_machine")
 async def remove_machine(machine_id: int, current_user: schemas.User = Depends(get_current_user),
                          db: crud.Session = Depends(get_db)):
+    """Removes a machine. This can be done only by an admin."""
     # only an admin can do this
     if not current_user.is_admin:
         raise HTTPException(
@@ -186,7 +193,7 @@ async def remove_machine(machine_id: int, current_user: schemas.User = Depends(g
 async def download_installer(one_time_installer_token: str, request: Request, background_tasks: BackgroundTasks,
                              db: crud.Session = Depends(get_db)):
     """
-    Downloads an installer file
+    Downloads an installer file, obsolete
     """
     if not crypto.prove_token(one_time_installer_token):
         raise HTTPException(
@@ -211,6 +218,7 @@ async def download_installer(one_time_installer_token: str, request: Request, ba
 @router.get("/generate_installer_link/")
 async def generate_installer_link(machine_id: int, request: Request, current_user: schemas.User = Depends(get_current_user),
                                   db: crud.Session = Depends(get_db)):
+    """Generates new install link for some machine. This should not be used for other than testing"""
     access_type = get_access_level(db, user_id=current_user.id, machine_id=machine_id)
 
     if access_type < models.AccessTypeEnum.maintainer:
@@ -234,6 +242,8 @@ async def generate_installer_link(machine_id: int, request: Request, current_use
 @router.get("/add_directory", response_model=schemas.MachineDirectory)
 async def add_directory(name: str, parent_id: int = None, current_user: schemas.User = Depends(get_current_user),
                         db: crud.Session = Depends(get_db)):
+    """Creates a new directory for the machines. If parent_id is not specified, it is going to be a top-level
+    directory."""
     required_access_level: models.AccessTypeEnum = models.AccessTypeEnum.admin if not parent_id else models.AccessTypeEnum.maintainer
     al: models.AccessTypeEnum = get_access_level(db, user_id=current_user.id, directory_id=parent_id)
     if al < required_access_level:
@@ -249,6 +259,7 @@ async def add_directory(name: str, parent_id: int = None, current_user: schemas.
 @router.delete("/remove_directory")
 async def remove_directory(directory_id: int, current_user: schemas.User = Depends(get_current_user),
                            db: crud.Session = Depends(get_db)):
+    """Removes the directory. Note that the directory MUST BE EMPTY, User has to be at least maintainer."""
     required_level = models.AccessTypeEnum.maintainer
     if get_access_level(db, user_id=current_user.id, directory_id=directory_id) < required_level:
         raise HTTPException(
@@ -273,6 +284,7 @@ async def remove_directory(directory_id: int, current_user: schemas.User = Depen
 @router.put("/edit_directory_name")
 async def edit_machine_directory(directory_id: int, name: str, current_user: schemas.User = Depends(get_current_user),
                                  db: crud.Session = Depends(get_db)):
+    """Edit the name of a directory. The user has to be at least maintainer."""
     required_level = models.AccessTypeEnum.maintainer
     level = get_access_level(db, user_id=current_user.id, directory_id=directory_id)
     if level < required_level:
@@ -292,6 +304,9 @@ async def edit_machine_directory(directory_id: int, name: str, current_user: sch
 async def move_machine_directory(directory_id: int, parent_id: int = None,
                                  current_user: schemas.User = Depends(get_current_user),
                                  db: crud.Session = Depends(get_db)):
+    """Moves the directory (including it's contents, of course) to another directory. User has to be at least maintainer
+    for both directories. Note that this can cause movement in between the user groups. At least the machines can not
+    be lost forever"""
     if not current_user.is_admin and parent_id is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -322,6 +337,8 @@ async def move_machine_directory(directory_id: int, parent_id: int = None,
 async def move_machine_to_directory(machine_id: int, directory_id: int = None,
                                     current_user: schemas.User = Depends(get_current_user),
                                     db: crud.Session = Depends(get_db)):
+    """Moves a machine to particular directory. User has to be at least a maintainer for both the actual directory
+    and the new directory. Note that this can cause movement in between the user groups."""
     needed_level = models.AccessTypeEnum.maintainer
     new_dir_level = get_access_level(db, user_id=current_user.id, directory_id=directory_id)
     machine_level = get_access_level(db, user_id=current_user.id, directory_id=directory_id)

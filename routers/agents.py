@@ -22,6 +22,7 @@ router = APIRouter()
 
 @router.post("/query", response_model=schemas.AgentResponse)
 async def agent_query(agentq: schemas.AgentQuery, db: crud.Session = Depends(get_db)):
+    """This is what agent calls frequently and checks for the actions"""
     if not crypto.prove_token(agentq.token):
         raise HTTPException(
             status_code=status.HTTP_406_NOT_ACCEPTABLE,
@@ -71,6 +72,8 @@ async def agent_query(agentq: schemas.AgentQuery, db: crud.Session = Depends(get
 
 @router.post("/agent_install")
 async def agent_install(agentq: schemas.AgentInstall, db: crud.Session = Depends(get_db)):
+    """After the agent is run for the first time, he should call this. Right now, he has to set the hosting
+    username only."""
     if not crypto.prove_token(agentq.token):
         raise HTTPException(
             status_code=status.HTTP_406_NOT_ACCEPTABLE,
@@ -91,6 +94,7 @@ async def agent_install(agentq: schemas.AgentInstall, db: crud.Session = Depends
 
 @router.post("/tunnel_changed")
 async def set_tunnel_state_connected(agentq: schemas.AgentTunnelChange, background_tasks: BackgroundTasks, db: crud.Session = Depends(get_db)):
+    """With this query  the agent sends the confirmation if he successfully opened or closed the tunnel"""
     if not crypto.prove_token(agentq.token):
         raise HTTPException(
             status_code=status.HTTP_406_NOT_ACCEPTABLE,

@@ -100,6 +100,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 @router.get("/find_user")
 async def find_user(username: str = None, email: str = None, db: crud.Session = Depends(get_db),
                     current_user: schemas.User = Depends(get_current_user)):
+    """Any user can find any other user by username or email. Why not?"""
     # for this any user can be logged in. This is so that I can allow other non-admin users to control my machines
     if bool(username) is bool(email):
         raise HTTPException(
@@ -126,17 +127,20 @@ async def find_user(username: str = None, email: str = None, db: crud.Session = 
 @router.get("/list")
 def list_users(db: crud.Session = Depends(get_db),
                current_user: schemas.User = Depends(check_current_user_admin)):
+    """Lists all the user in the db. Only admin can call this"""
     return crud.users_get(db)
 
 
 @router.get("/me")
 async def read_users_me(current_user: schemas.User = Depends(get_current_user)):
+    """returns the information about the current user"""
     return current_user
 
 
 @router.post("/user_create")
-async def create_user(username: str, password: str, email: str, is_admin: bool, db: crud.Session = Depends(get_db),
+async def create_user(username: str, password: str, email: str, is_admin: bool = False, db: crud.Session = Depends(get_db),
                       current_user: schemas.User = Depends(check_current_user_admin)):
+    """Creates a new user. Only admin can do this"""
     user = schemas.UserCreate(username=username, password=password, email=email, is_admin=is_admin)
     return crud.user_create(db, user)
 
@@ -144,6 +148,7 @@ async def create_user(username: str, password: str, email: str, is_admin: bool, 
 @router.put("/change_password")
 async def change_password(username: str, new_password: str, db: crud.Session = Depends(get_db),
                           current_user: schemas.User = Depends(get_current_user)):
+    """Changes password of a user. Only that user or an admin can do that"""
     if current_user.username != username and not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -154,14 +159,16 @@ async def change_password(username: str, new_password: str, db: crud.Session = D
 
 
 @router.delete("/user_delete")
-async def delete_user(username: str, current_user: schemas.User = Depends(get_current_user),
+async def delete_user(username: str, current_user: schemas.User = Depends(check_current_user_admin),
                       db: crud.Session = Depends(get_db)):
+    """Deletes the user: only an admin can do that"""
     return crud.user_delete(db, username)
 
 
 @router.get("/user_group_list", response_model=List[schemas.UserGroup])
 async def router_group_list(current_user: schemas.User = Depends(get_current_user),
                       db: crud.Session = Depends(get_db)):
+    """Lists all the user groups that the current user is in. If user is an admin, list all the user groups."""
     if current_user.is_admin:
         return crud.user_group_list(db)
 
@@ -172,6 +179,7 @@ async def router_group_list(current_user: schemas.User = Depends(get_current_use
 @router.put("/user_group_create")
 async def create_user_group(name: str, db: crud.Session = Depends(get_db),
                             current_user: schemas.User = Depends(check_current_user_admin)):
+    """Creates user group, only an admin can do that"""
     if not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -185,6 +193,7 @@ async def create_user_group(name: str, db: crud.Session = Depends(get_db),
 @router.delete("/user_group_delete")
 async def delete_user_group(ug_id: int, db: crud.Session = Depends(get_db),
                             current_user: schemas.User = Depends(check_current_user_admin)):
+    """deletes the user group. Only an admin can do that."""
     if not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -204,6 +213,7 @@ async def delete_user_group(ug_id: int, db: crud.Session = Depends(get_db),
 @router.put("/add_user_to_group")
 async def add_user_to_group(user_id: int, group_id: int, db: crud.Session = Depends(get_db),
                             current_user: schemas.User = Depends(check_current_user_admin)):
+    """Adds an user to an user group. Only an admin can do that."""
     if not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -217,7 +227,7 @@ async def add_user_to_group(user_id: int, group_id: int, db: crud.Session = Depe
 @router.put("/remove_user_from_group")
 async def remove_user_from_group(user_id: int, group_id: int, db: crud.Session = Depends(get_db),
                             current_user: schemas.User = Depends(check_current_user_admin)):
-
+    """Removes user from user group. Only an admin can do that."""
     if not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -231,6 +241,8 @@ async def remove_user_from_group(user_id: int, group_id: int, db: crud.Session =
 @router.put("/update_access")
 async def update_access(group_id: int, directory_id: int, level: models.AccessTypeEnum, db: crud.Session = Depends(get_db),
                             current_user: schemas.User = Depends(check_current_user_admin)):
+    """Updates the access of a particular user group to a particular directory. Note that multiple accesses for one
+    user group on one tree path are not allowed!"""
     if not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
