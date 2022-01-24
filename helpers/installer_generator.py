@@ -39,7 +39,7 @@ sudo chmod 644 /home/$OST_USERNAME/.ssh/known_hosts
 
 # Create the directory for Agent and download a compatible version
 sudo mkdir /home/$OST_USERNAME/.OSTAgent
-wget https://github.com/santomet/OpenSupportTool-daemon/archive/refs/tags/v0.3.zip
+wget https://github.com/santomet/OpenSupportTool-daemon/archive/refs/tags/v0.3a.zip
 unzip v0.3.zip
 sudo mv OpenSupportTool*/* /home/$OST_USERNAME/.OSTAgent/
 rm -rf OpenSupport*
